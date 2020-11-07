@@ -3,8 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MenuAPI;
+using Newtonsoft.Json;
 using CitizenFX.Core;
+using static CitizenFX.Core.UI.Screen;
 using static CitizenFX.Core.Native.API;
+using static vMenuClient.CommonFunctions;
 
 namespace vMenuClient
 {
@@ -28,6 +32,7 @@ namespace vMenuClient
         PedNotFound,
         WalkingStyleNotForMale,
         WalkingStyleNotForFemale,
+        RightAlignedNotSupported,
     };
 
     /// <summary>
@@ -86,6 +91,9 @@ namespace vMenuClient
                 case CommonErrors.WalkingStyleNotForFemale:
                     outputMessage = $"This walking style is not available for female peds.{placeholder}";
                     break;
+                case CommonErrors.RightAlignedNotSupported:
+                    outputMessage = $"Right aligned menus are not supported for ultra wide aspect ratios.{placeholder}";
+                    break;
 
                 case CommonErrors.UnknownError:
                 default:
@@ -112,15 +120,10 @@ namespace vMenuClient
         /// <param name="saveToBrief">Should the notification be logged to the brief (PAUSE menu > INFO > Notifications)?</param>
         public static void Custom(string message, bool blink = true, bool saveToBrief = true)
         {
-            SetNotificationTextEntry("THREESTRINGS");
-            string[] messages = MainMenu.Cf.StringToArray(message);
-            foreach (string msg in messages)
+            SetNotificationTextEntry("CELL_EMAIL_BCON"); // 10x ~a~
+            foreach (string s in CitizenFX.Core.UI.Screen.StringToArray(message))
             {
-                if (msg != null)
-                {
-                    AddTextComponentSubstringPlayerName(msg);
-                }
-
+                AddTextComponentSubstringPlayerName(s);
             }
             DrawNotification(blink, saveToBrief);
         }
@@ -158,6 +161,7 @@ namespace vMenuClient
         public static void Error(string message, bool blink = true, bool saveToBrief = true)
         {
             Custom("~r~~h~Error~h~~s~: " + message, blink, saveToBrief);
+            Debug.Write("[vMenu] [ERROR] " + message + "\n");
         }
 
         /// <summary>
@@ -194,6 +198,26 @@ namespace vMenuClient
         {
             Custom("~g~~h~Success~h~~s~: " + message, blink, saveToBrief);
         }
+
+        /// <summary>
+        /// Shows a custom notification with an image attached.
+        /// </summary>
+        /// <param name="textureDict"></param>
+        /// <param name="textureName"></param>
+        /// <param name="message"></param>
+        /// <param name="title"></param>
+        /// <param name="subtitle"></param>
+        /// <param name="safeToBrief"></param>
+        public static void CustomImage(string textureDict, string textureName, string message, string title, string subtitle, bool saveToBrief, int iconType = 0)
+        {
+            SetNotificationTextEntry("CELL_EMAIL_BCON"); // 10x ~a~
+            foreach (string s in CitizenFX.Core.UI.Screen.StringToArray(message))
+            {
+                AddTextComponentSubstringPlayerName(s);
+            }
+            SetNotificationMessage(textureName, textureDict, false, iconType, title, subtitle);
+            DrawNotification(false, saveToBrief);
+        }
     }
     #endregion
 
@@ -212,11 +236,10 @@ namespace vMenuClient
         /// <param name="drawImmediately">(Optional) draw the notification immediately or wait for the previous subtitle text to disappear.</param>
         public static void Custom(string message, int duration = 2500, bool drawImmediately = true)
         {
-            BeginTextCommandPrint("THREESTRINGS");
-            var messages = MainMenu.Cf.StringToArray(message);
-            foreach (var msg in messages)
+            BeginTextCommandPrint("CELL_EMAIL_BCON"); // 10x ~a~
+            foreach (string s in CitizenFX.Core.UI.Screen.StringToArray(message))
             {
-                AddTextComponentSubstringPlayerName(msg);
+                AddTextComponentSubstringPlayerName(s);
             }
             EndTextCommandPrint(duration, drawImmediately);
         }
@@ -270,4 +293,58 @@ namespace vMenuClient
         }
     }
     #endregion
+
+    public static class HelpMessage
+    {
+
+
+        public enum Label
+        {
+            EXIT_INTERIOR_HELP_MESSAGE
+        }
+
+        private static Dictionary<Label, KeyValuePair<string, string>> labels = new Dictionary<Label, KeyValuePair<string, string>>()
+        {
+            [Label.EXIT_INTERIOR_HELP_MESSAGE] = new KeyValuePair<string, string>("EXIT_INTERIOR_HELP_MESSAGE", "Press ~INPUT_CONTEXT~ to exit the building.")
+        };
+
+
+
+        public static void Custom(string message) => Custom(message, 6000, true);
+        public static void Custom(string message, int duration) => Custom(message, duration, true);
+        public static void Custom(string message, int duration, bool sound)
+        {
+            string[] array = CommonFunctions.StringToArray(message);
+            if (IsHelpMessageBeingDisplayed())
+            {
+                ClearAllHelpMessages();
+            }
+            BeginTextCommandDisplayHelp("CELL_EMAIL_BCON");
+            foreach (string s in array)
+            {
+                AddTextComponentSubstringPlayerName(s);
+            }
+            EndTextCommandDisplayHelp(0, false, sound, duration);
+        }
+
+        public static void CustomLooped(Label label)
+        {
+            if (GetLabelText(labels[label].Key) == "NULL")
+            {
+                AddTextEntry(labels[label].Key, labels[label].Value);
+            }
+            //string[] array = CommonFunctions.StringToArray(message);
+            //if (IsHelpMessageBeingDisplayed())
+            //{
+            //    ClearAllHelpMessages();
+            //}
+            //BeginTextCommandDisplayHelp("CELL_EMAIL_BCON");
+            //foreach (string s in array)
+            //{
+            //    AddTextComponentSubstringPlayerName(s);
+            //}
+            DisplayHelpTextThisFrame(labels[label].Key, true);
+            //EndTextCommandDisplayHelp(0, true, false, -1);
+        }
+    }
 }

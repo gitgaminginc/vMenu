@@ -1,96 +1,55 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{58FE5D89-E729-4246-B527-6EDA2A1AF04D}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>vMenuClient</RootNamespace>
+    <TargetFramework>net452</TargetFramework>
+    <DebugType>embedded</DebugType>
+    <Configurations>Release;Debug</Configurations>
     <AssemblyName>vMenuClient.net</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <TargetFrameworkProfile />
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>embedded</DebugType>
-    <Optimize>false</Optimize>
+    <TargetName>$(AssemblyName)</TargetName>
     <OutputPath>..\..\build\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>embedded</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <DebugSymbols>true</DebugSymbols>
+    <DefineConstants>CLIENT</DefineConstants>
+    <LangVersion>8.0</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="CitizenFX.Core, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>.\CitizenFX.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="NativeUI, Version=1.7.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\NativeUI.dll</HintPath>
-    </Reference>
-    <Reference Include="Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\Newtonsoft.Json.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
+    <Compile Include="..\SharedClasses\ConfigManager.cs" Link="ConfigManager.cs" />
+    <Compile Include="..\SharedClasses\PermissionsManager.cs" Link="PermissionsManager.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MenuAPI.FiveM" Version="3.2.2" />
+
     <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Xml" />
+    
+    <PackageReference Include="CitizenFX.Core.Client" Version="1.0.*">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\dependencies\shared\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+
   </ItemGroup>
+  
   <ItemGroup>
-    <Compile Include="BlipInfo.cs" />
-    <Compile Include="CommonFunctions.cs" />
-    <Compile Include="Configuration.cs" />
-    <Compile Include="EventManager.cs" />
-    <Compile Include="FunctionsController.cs" />
-    <Compile Include="MainMenu.cs" />
-    <Compile Include="menus\About.cs" />
-    <Compile Include="menus\BannedPlayers.cs" />
-    <Compile Include="menus\MiscSettings.cs" />
-    <Compile Include="menus\OnlinePlayers.cs" />
-    <Compile Include="menus\PlayerAppearance.cs" />
-    <Compile Include="menus\SavedVehicles.cs" />
-    <Compile Include="menus\TimeOptions.cs" />
-    <Compile Include="menus\VehicleOptions.cs" />
-    <Compile Include="menus\VehicleSpawner.cs" />
-    <Compile Include="menus\VoiceChat.cs" />
-    <Compile Include="menus\WeaponOptions.cs" />
-    <Compile Include="menus\WeatherOptions.cs" />
-    <Compile Include="NoclipMenu.cs" />
-    <Compile Include="Notification.cs" />
-    <Compile Include="PedScenarios.cs" />
-    <Compile Include="menus\PlayerOptions.cs" />
-    <Compile Include="Permission.cs" />
-    <Compile Include="PermissionsManager.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="StorageManager.cs" />
-    <Compile Include="UserDefaults.cs" />
-    <Compile Include="ValidWeapon.cs" />
-    <Compile Include="VehicleData.cs" />
-    <Compile Include="Vehicles.cs" />
+    <Resource Include="data\overlays.json" />
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent Condition=" '$(OS)' == 'Unix'">
-    </PostBuildEvent>
-    <PostBuildEvent Condition=" '$(OS)' == 'Windows_NT'">copy /Y "D:\Tom Grobbe\Documents\GitHub Repos\vMenu\build\NativeUI.dll" "D:\FXserver\vMenu\resources\vMenu\"
-copy /Y "D:\Tom Grobbe\Documents\GitHub Repos\vMenu\build\vMenuClient.net.dll" "D:\FXserver\vMenu\resources\vMenu\"</PostBuildEvent>
-  </PropertyGroup>
+  
+  <ItemGroup>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="if exist &quot;$(SolutionDir)\postbuild.cmd&quot; &quot;$(SolutionDir)postbuild.cmd&quot;" />
+  </Target>
 </Project>

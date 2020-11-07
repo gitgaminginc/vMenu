@@ -1,117 +1,38 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MenuAPI;
+using Newtonsoft.Json;
 using CitizenFX.Core;
+using static CitizenFX.Core.UI.Screen;
 using static CitizenFX.Core.Native.API;
-using NativeUI;
+using static vMenuClient.CommonFunctions;
+using static vMenuShared.PermissionsManager;
 
 namespace vMenuClient
 {
     public class PlayerAppearance
     {
-        // Variables
-        private CommonFunctions cf = MainMenu.Cf;
-        private StorageManager sm = new StorageManager();
+        private Menu menu;
 
-        private UIMenu menu;
-        public UIMenu mpCharMenu;
-
-        private UIMenu pedTextures;
-        private UIMenu spawnSavedPedMenu;
-        private UIMenu deleteSavedPedMenu;
+        private Menu pedCustomizationMenu;
+        private Menu savedPedsMenu;
+        private Menu spawnPedsMenu;
+        private Menu addonPedsMenu;
+        private Menu mainPedsMenu = new Menu("Main Peds", "Spawn A Ped");
+        private Menu animalsPedsMenu = new Menu("Animals", "Spawn A Ped");
+        private Menu malePedsMenu = new Menu("Male Peds", "Spawn A Ped");
+        private Menu femalePedsMenu = new Menu("Female Peds", "Spawn A Ped");
+        private Menu otherPedsMenu = new Menu("Other Peds", "Spawn A Ped");
 
         public static Dictionary<string, uint> AddonPeds;
 
+        public static int ClothingAnimationType { get; set; } = UserDefaults.PAClothingAnimationType;
 
-
-        public List<UIMenu> mpCharMenus = new List<UIMenu>();
-
-        #region Mp character struct
-        public struct MpCharacterStyle
-        {
-            /// sex
-            public bool IsMale { get; set; }
-
-            /// appearance
-            // hair
-            public int HairStyle { get; set; }
-            public int HairColor { get; set; }
-            public int HairHighlightColor { get; set; }
-            // face
-            public int EyeColor { get; set; }
-
-
-            /// body/head shapes
-            public float NoseWidth { get; set; }
-            public float NosePeakHeight { get; set; }
-            public float NosePeakLength { get; set; }
-            public float NosePeakLowering { get; set; }
-            public float NoseBoneTwist { get; set; }
-            public float EyebrowHeight { get; set; }
-            public float EyebrowForward { get; set; }
-            public float CheeksBoneHeight { get; set; }
-            public float CheeksBoneWidth { get; set; }
-            public float CheeksWidth { get; set; }
-            public float EyesOpening { get; set; }
-            public float LipsThickness { get; set; }
-            public float JawBoneWidth { get; set; }
-            public float JawBoneBackLength { get; set; }
-            public float ChinBoneLowering { get; set; }
-            public float ChinBoneLength { get; set; }
-            public float ChinBoneWidth { get; set; }
-            public float ChinHole { get; set; }
-            public float NeckThickness { get; set; }
-            public float Resemblance { get; set; }
-            public float SkinTone { get; set; }
-
-            public int Mom { get; set; }
-            public int Dad { get; set; }
-            public bool Valid { get; private set; }
-
-
-            /// constructor
-
-            public MpCharacterStyle(bool isMale) : this(isMale, true, 0, 0, 0, 0, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0, 0, 0f, 0f) { }
-            public MpCharacterStyle(bool isMale, bool isValid) : this(isMale, isValid, 0, 0, 0, 0, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0, 0, 0f, 0f) { }
-            public MpCharacterStyle(bool isMale, bool isValid, int hairStyle, int hairColor, int hairHighlightColor, int eyeColor, float noseWidth, float nosePeakHeight, float nosePeakLength, float nosePeakLowering, float noseBoneTwist, float eyebrowHeight, float eyebrowForward, float cheekboneHeight, float cheekboneWidth, float cheekWidth, float eyesOpening, float lipsThickness, float jawBoneWidth, float jawBoneBackLength, float chinBoneLowering, float chinBoneLength, float chinBoneWidth, float chinHole, float neckThickness, int mom, int dad, float resemblance, float skinTone)
-            {
-                IsMale = isMale;
-                Valid = isValid;
-                HairStyle = hairStyle;
-                HairColor = hairColor;
-                HairHighlightColor = hairHighlightColor;
-                EyeColor = eyeColor;
-                NoseWidth = noseWidth;
-                NosePeakHeight = nosePeakHeight;
-                NosePeakLength = nosePeakLength;
-                NosePeakLowering = nosePeakLowering;
-                NoseBoneTwist = noseBoneTwist;
-                EyebrowHeight = eyebrowHeight;
-                EyebrowForward = eyebrowForward;
-                CheeksBoneHeight = cheekboneHeight;
-                CheeksBoneWidth = cheekboneWidth;
-                CheeksWidth = cheekWidth;
-                EyesOpening = eyesOpening;
-                LipsThickness = lipsThickness;
-                JawBoneWidth = jawBoneWidth;
-                JawBoneBackLength = jawBoneBackLength;
-                ChinBoneLength = chinBoneLength;
-                ChinBoneWidth = chinBoneWidth;
-                ChinBoneLowering = chinBoneLowering;
-                ChinHole = chinHole;
-                NeckThickness = neckThickness;
-                Mom = mom;
-                Dad = dad;
-                Resemblance = resemblance;
-                SkinTone = skinTone;
-            }
-        }
-        #endregion
-
-        MpCharacterStyle currentCharacter = new MpCharacterStyle(false, false);
-
+        private Dictionary<MenuListItem, int> drawablesMenuListItems = new Dictionary<MenuListItem, int>();
+        private Dictionary<MenuListItem, int> propsMenuListItems = new Dictionary<MenuListItem, int>();
 
         #region create the menu
         /// <summary>
@@ -120,249 +41,563 @@ namespace vMenuClient
         private void CreateMenu()
         {
             // Create the menu.
-            menu = new UIMenu(GetPlayerName(PlayerId()), "Player Appearance", true)
-            {
-                ScaleWithSafezone = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ControlDisablingEnabled = false
-            };
+            menu = new Menu(Game.Player.Name, "Player Appearance");
+            savedPedsMenu = new Menu(Game.Player.Name, "Saved Peds");
+            pedCustomizationMenu = new Menu(Game.Player.Name, "Customize Saved Ped");
+            spawnPedsMenu = new Menu(Game.Player.Name, "Spawn Ped");
+            addonPedsMenu = new Menu(Game.Player.Name, "Addon Peds");
 
-            //Create the submenus.
-            mpCharMenu = new UIMenu(GetPlayerName(PlayerId()), "Multiplayer Ped Customization", true)
-            {
-                ScaleWithSafezone = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ControlDisablingEnabled = false
-            };
-            mpCharMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right"));
-            mpCharMenus.Add(mpCharMenu);
-
-            spawnSavedPedMenu = new UIMenu("Saved Peds", "Spawn Saved Ped", true)
-            {
-                ScaleWithSafezone = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ControlDisablingEnabled = false
-            };
-            deleteSavedPedMenu = new UIMenu("Saved Peds", "Delete Saved Ped", true)
-            {
-                ScaleWithSafezone = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ControlDisablingEnabled = false
-            };
-            pedTextures = new UIMenu("Ped Customization", "Customize Saved Ped", true)
-            {
-                ScaleWithSafezone = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ControlDisablingEnabled = false
-            };
 
             // Add the (submenus) to the menu pool.
-            MainMenu.Mp.Add(mpCharMenu);
-            MainMenu.Mp.Add(pedTextures);
-            MainMenu.Mp.Add(spawnSavedPedMenu);
-            MainMenu.Mp.Add(deleteSavedPedMenu);
+            MenuController.AddSubmenu(menu, pedCustomizationMenu);
+            MenuController.AddSubmenu(menu, savedPedsMenu);
+            MenuController.AddSubmenu(menu, spawnPedsMenu);
+            MenuController.AddSubmenu(spawnPedsMenu, addonPedsMenu);
+            MenuController.AddSubmenu(spawnPedsMenu, mainPedsMenu);
+            MenuController.AddSubmenu(spawnPedsMenu, animalsPedsMenu);
+            MenuController.AddSubmenu(spawnPedsMenu, malePedsMenu);
+            MenuController.AddSubmenu(spawnPedsMenu, femalePedsMenu);
+            MenuController.AddSubmenu(spawnPedsMenu, otherPedsMenu);
 
             // Create the menu items.
-            UIMenuItem mpCharMenuBtn = new UIMenuItem("MP Character Customization", "All multiplayer (freemode character) ped customization options.");
-            mpCharMenuBtn.SetRightLabel("→→→");
-            UIMenuItem pedCustomization = new UIMenuItem("Ped Customization", "Modify your ped's appearance.");
-            pedCustomization.SetRightLabel("→→→");
-            UIMenuItem savePed = new UIMenuItem("Save Current Ped", "Save your current ped and clothes.");
-            savePed.SetRightBadge(UIMenuItem.BadgeStyle.Tick);
-            UIMenuItem spawnSavedPed = new UIMenuItem("Spawn Saved Ped", "Spawn one of your saved peds.");
-            spawnSavedPed.SetRightLabel("→→→");
-            UIMenuItem deleteSavedPed = new UIMenuItem("Delete Saved Ped", "Delete one of your saved peds.");
-            deleteSavedPed.SetRightLabel("→→→");
-            deleteSavedPed.SetLeftBadge(UIMenuItem.BadgeStyle.Alert);
-            UIMenuItem spawnByName = new UIMenuItem("Spawn Ped By Name", "Enter a model name of a custom ped you want to spawn.");
-            List<dynamic> walkstyles = new List<dynamic>() { "Normal", "Injured", "Tough Guy", "Femme", "Gangster", "Posh", "Sexy", "Business", "Drunk", "Hipster" };
-            UIMenuListItem walkingStyle = new UIMenuListItem("Walking Style", walkstyles, 0, "Change the walking style of your current ped. " +
+            MenuItem pedCustomization = new MenuItem("Ped Customization", "Modify your ped's appearance.") { Label = "→→→" };
+            MenuItem saveCurrentPed = new MenuItem("Save Ped", "Save your current ped. Note for the MP Male/Female peds this won't save most of their customization, just because that's impossible. Create those characters in the MP Character creator instead.");
+            MenuItem savedPedsBtn = new MenuItem("Saved Peds", "Edit, rename, clone, spawn or delete saved peds.") { Label = "→→→" };
+            MenuItem spawnPedsBtn = new MenuItem("Spawn Peds", "Change ped model by selecting one from the list or by selecting an addon ped from the list.") { Label = "→→→" };
+
+
+            MenuItem spawnByNameBtn = new MenuItem("Spawn By Name", "Spawn a ped by entering it's name manually.");
+            MenuItem addonPedsBtn = new MenuItem("Addon Peds", "Spawn a ped from the addon peds list.") { Label = "→→→" };
+            MenuItem mainPedsBtn = new MenuItem("Main Peds", "Select a new ped from the main player-peds list.") { Label = "→→→" };
+            MenuItem animalPedsBtn = new MenuItem("Animals", "Become an animal. ~r~Note this may crash your own or other players' game if you die as an animal, godmode can NOT prevent this.") { Label = "→→→" };
+            MenuItem malePedsBtn = new MenuItem("Male Peds", "Select a male ped.") { Label = "→→→" };
+            MenuItem femalePedsBtn = new MenuItem("Female Peds", "Select a female ped.") { Label = "→→→" };
+            MenuItem otherPedsBtn = new MenuItem("Other Peds", "Select a ped.") { Label = "→→→" };
+
+            List<string> walkstyles = new List<string>() { "Normal", "Injured", "Tough Guy", "Femme", "Gangster", "Posh", "Sexy", "Business", "Drunk", "Hipster" };
+            MenuListItem walkingStyle = new MenuListItem("Walking Style", walkstyles, 0, "Change the walking style of your current ped. " +
                 "You need to re-apply this each time you change player model or load a saved ped.");
 
-            // Add items to the mneu.
-            menu.AddItem(mpCharMenuBtn);
-            menu.AddItem(pedCustomization);
-            menu.AddItem(savePed);
-            menu.AddItem(spawnSavedPed);
-            menu.AddItem(deleteSavedPed);
-            menu.AddItem(walkingStyle);
+            List<string> clothingGlowAnimations = new List<string>() { "On", "Off", "Fade", "Flash" };
+            MenuListItem clothingGlowType = new MenuListItem("Illuminated Clothing Style", clothingGlowAnimations, ClothingAnimationType, "Set the style of the animation used on your player's illuminated clothing items.");
 
-            // Bind items to the submenus.
-            //if (cf.IsAllowed(Permission.PACustomize) && MainMenu.EnableExperimentalFeatures) // only enable it if experimental features are turned on
-            //{
-            //    CreateMpPedMenu(mpCharMenu); // loads all menu items and adds event listeners.
-            //    menu.BindMenuToItem(mpCharMenu, mpCharMenuBtn);
-            //}
-            //else
+            // Add items to the menu.
+            menu.AddMenuItem(pedCustomization);
+            menu.AddMenuItem(saveCurrentPed);
+            menu.AddMenuItem(savedPedsBtn);
+            menu.AddMenuItem(spawnPedsBtn);
+
+            menu.AddMenuItem(walkingStyle);
+            menu.AddMenuItem(clothingGlowType);
+
+            if (IsAllowed(Permission.PACustomize))
             {
-                mpCharMenuBtn.Enabled = false;
-                mpCharMenuBtn.SetLeftBadge(UIMenuItem.BadgeStyle.Lock);
-                //mpCharMenuBtn.Description = "~r~The options in this submenu are restricted because they are still experimental features. The server owner can enable this if they want to, but you have been warned because it may cause dataloss for users and could be buggy.";
-
-                mpCharMenuBtn.Description = "This will be added in the near future. It does not work, so don't even try to enable it, it WILL currently delete all your saved peds/vehicles if you do so.";
-            }
-
-            if (cf.IsAllowed(Permission.PACustomize))
-            {
-                menu.BindMenuToItem(pedTextures, pedCustomization);
+                MenuController.BindMenuItem(menu, pedCustomizationMenu, pedCustomization);
             }
             else
             {
-                pedCustomization.Enabled = false;
-                pedCustomization.SetLeftBadge(UIMenuItem.BadgeStyle.Lock);
-                pedCustomization.Description = "~r~This option has been disabled by the server owner.";
+                menu.RemoveMenuItem(pedCustomization);
             }
 
-            if (cf.IsAllowed(Permission.PASpawnSaved))
-            {
-                menu.BindMenuToItem(spawnSavedPedMenu, spawnSavedPed);
-            }
-            else
+            // always allowed
+            MenuController.BindMenuItem(menu, savedPedsMenu, savedPedsBtn);
+            MenuController.BindMenuItem(menu, spawnPedsMenu, spawnPedsBtn);
+
+            Menu selectedSavedPedMenu = new Menu("Saved Ped", "renameme");
+            MenuController.AddSubmenu(savedPedsMenu, selectedSavedPedMenu);
+            MenuItem spawnSavedPed = new MenuItem("Spawn Saved Ped", "Spawn this saved ped.");
+            MenuItem cloneSavedPed = new MenuItem("Clone Saved Ped", "Clone this saved ped.");
+            MenuItem renameSavedPed = new MenuItem("Rename Saved Ped", "Rename this saved ped.") { LeftIcon = MenuItem.Icon.WARNING };
+            MenuItem replaceSavedPed = new MenuItem("~r~Replace Saved Ped", "Repalce this saved ped with your current ped. Note this can not be undone!") { LeftIcon = MenuItem.Icon.WARNING };
+            MenuItem deleteSavedPed = new MenuItem("~r~Delete Saved Ped", "Delete this saved ped. Note this can not be undone!") { LeftIcon = MenuItem.Icon.WARNING };
+
+            if (!IsAllowed(Permission.PASpawnSaved))
             {
                 spawnSavedPed.Enabled = false;
-                spawnSavedPed.SetLeftBadge(UIMenuItem.BadgeStyle.Lock);
-                spawnSavedPed.Description = "~r~This option has been disabled by the server owner.";
+                spawnSavedPed.RightIcon = MenuItem.Icon.LOCK;
+                spawnSavedPed.Description = "You are not allowed to spawn saved peds.";
             }
 
-            menu.BindMenuToItem(deleteSavedPedMenu, deleteSavedPed);
+            selectedSavedPedMenu.AddMenuItem(spawnSavedPed);
+            selectedSavedPedMenu.AddMenuItem(cloneSavedPed);
+            selectedSavedPedMenu.AddMenuItem(renameSavedPed);
+            selectedSavedPedMenu.AddMenuItem(replaceSavedPed);
+            selectedSavedPedMenu.AddMenuItem(deleteSavedPed);
 
-            UIMenu addonPeds = new UIMenu("Model Spawner", "Spawn Addon Ped", true)
+            KeyValuePair<string, PedInfo> savedPed = new KeyValuePair<string, PedInfo>();
+
+            selectedSavedPedMenu.OnItemSelect += async (sender, item, index) =>
             {
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ControlDisablingEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            UIMenuItem addonPedsBtn = new UIMenuItem("Addon Peds", "Choose a player skin from the addons list available on this server.");
-            menu.AddItem(addonPedsBtn);
-            MainMenu.Mp.Add(addonPeds);
-
-            if (AddonPeds != null)
-            {
-                if (AddonPeds.Count > 0)
+                if (item == spawnSavedPed)
                 {
-                    addonPedsBtn.SetRightLabel("→→→");
-                    foreach (KeyValuePair<string, uint> ped in AddonPeds)
+                    await SetPlayerSkin(savedPed.Value.model, savedPed.Value, true);
+                }
+                else if (item == cloneSavedPed)
+                {
+                    string name = await GetUserInput($"Enter a clone name ({savedPed.Key.Substring(4)})", savedPed.Key.Substring(4), 30);
+                    if (string.IsNullOrEmpty(name))
                     {
-                        var button = new UIMenuItem(ped.Key, "Click to use this ped.");
-                        addonPeds.AddItem(button);
-                        if (!IsModelAPed(ped.Value) || !IsModelInCdimage(ped.Value))
-                        {
-                            button.Enabled = false;
-                            button.SetLeftBadge(UIMenuItem.BadgeStyle.Lock);
-                            button.Description = "This ped is not available on this server. Are you sure the model is valid?";
-                        }
+                        Notify.Error(CommonErrors.InvalidSaveName);
                     }
-                    addonPeds.OnItemSelect += (sender, item, index) =>
+                    else
                     {
-                        if (item.Enabled)
+                        if (!string.IsNullOrEmpty(GetResourceKvpString($"ped_{name}")))
                         {
-                            cf.SetPlayerSkin(AddonPeds.ElementAt(index).Value, new CommonFunctions.PedInfo() { version = -1 });
+                            Notify.Error(CommonErrors.SaveNameAlreadyExists);
                         }
                         else
                         {
-                            Notify.Error("This ped is not available. Please ask the server owner to verify this addon ped.");
+                            if (StorageManager.SavePedInfo("ped_" + name, savedPed.Value, false))
+                            {
+                                Notify.Success($"Saved Ped has successfully been cloned. Clone name: ~g~<C>{name}</C>~s~.");
+                            }
+                            else
+                            {
+                                Notify.Error(CommonErrors.UnknownError, placeholderValue: " Could not save your cloned ped. Don't worry, your original ped is unharmed.");
+                            }
                         }
+                    }
+                }
+                else if (item == renameSavedPed)
+                {
+                    string name = await GetUserInput($"Enter a new name for: {savedPed.Key.Substring(4)}", savedPed.Key.Substring(4), 30);
+                    if (string.IsNullOrEmpty(name))
+                    {
+                        Notify.Error(CommonErrors.InvalidSaveName);
+                    }
+                    else
+                    {
+                        if ("ped_" + name == savedPed.Key)
+                        {
+                            Notify.Error("You need to choose a different name, you can't use the same name as your existing ped.");
+                            return;
+                        }
+                        if (StorageManager.SavePedInfo("ped_" + name, savedPed.Value, false))
+                        {
+                            Notify.Success($"Saved Ped has successfully been renamed. New ped name: ~g~<C>{name}</C>~s~.");
+                            DeleteResourceKvp(savedPed.Key);
+                            selectedSavedPedMenu.MenuSubtitle = name;
+                            savedPed = new KeyValuePair<string, PedInfo>("ped_" + name, savedPed.Value);
+                        }
+                        else
+                        {
+                            Notify.Error(CommonErrors.SaveNameAlreadyExists);
+                        }
+                    }
+                }
+                else if (item == replaceSavedPed)
+                {
+                    if (item.Label == "Are you sure?")
+                    {
+                        item.Label = "";
+                        bool success = await SavePed(savedPed.Key.Substring(4), overrideExistingPed: true);
+                        if (!success)
+                        {
+                            Notify.Error(CommonErrors.UnknownError, placeholderValue: " Could not save your replaced ped. Don't worry, your original ped is unharmed.");
+                        }
+                        else
+                        {
+                            Notify.Success("Your saved ped has successfully been replaced.");
+                            savedPed = new KeyValuePair<string, PedInfo>(savedPed.Key, StorageManager.GetSavedPedInfo(savedPed.Key));
+                        }
+                    }
+                    else
+                    {
+                        item.Label = "Are you sure?";
+                    }
+                }
+                else if (item == deleteSavedPed)
+                {
+                    if (item.Label == "Are you sure?")
+                    {
+                        DeleteResourceKvp(savedPed.Key);
+                        Notify.Success("Your saved ped has been deleted.");
+                        selectedSavedPedMenu.GoBack();
+                    }
+                    else
+                    {
+                        item.Label = "Are you sure?";
+                    }
+                }
+            };
 
-                    };
-                    menu.BindMenuToItem(addonPeds, addonPedsBtn);
+            void ResetSavedPedsMenu(bool refreshIndex)
+            {
+                foreach (var item in selectedSavedPedMenu.GetMenuItems())
+                {
+                    item.Label = "";
+                }
+                if (refreshIndex)
+                {
+                    selectedSavedPedMenu.RefreshIndex();
+                }
+            }
+
+            selectedSavedPedMenu.OnIndexChange += (menu, newItem, oldItem, oldIndex, newIndex) => ResetSavedPedsMenu(false);
+            selectedSavedPedMenu.OnMenuOpen += (menu) => ResetSavedPedsMenu(true);
+
+
+            void UpdateSavedPedsMenu()
+            {
+                int size = savedPedsMenu.Size;
+
+                Dictionary<string, PedInfo> savedPeds = StorageManager.GetSavedPeds();
+
+                foreach (var ped in savedPeds)
+                {
+                    if (size < 1 || !savedPedsMenu.GetMenuItems().Any(e => ped.Key == e.ItemData.Key))
+                    {
+                        MenuItem btn = new MenuItem(ped.Key.Substring(4), "Click to manage this saved ped.") { Label = "→→→", ItemData = ped };
+                        savedPedsMenu.AddMenuItem(btn);
+                        MenuController.BindMenuItem(savedPedsMenu, selectedSavedPedMenu, btn);
+                    }
+                }
+
+                if (savedPedsMenu.Size > 0)
+                {
+                    foreach (var d in savedPedsMenu.GetMenuItems())
+                    {
+                        if (!savedPeds.ContainsKey(d.ItemData.Key))
+                        {
+                            savedPedsMenu.RemoveMenuItem(d);
+                        }
+                        else
+                        {
+                            // Make sure the saved ped data is actually correct and up to date for this item.
+                            var p = savedPeds.First(e => e.Key == d.ItemData.Key);
+                            if (!string.IsNullOrEmpty(p.Key))
+                            {
+                                d.ItemData = p;
+                            }
+                        }
+                    }
+                }
+
+                if (savedPedsMenu.Size > 0)
+                {
+                    savedPedsMenu.SortMenuItems((a, b) => a.Text.ToLower().CompareTo(b.Text.ToLower()));
+                }
+
+                // refresh index only if the size of the menu has changed.
+                if (size != savedPedsMenu.Size)
+                {
+                    savedPedsMenu.RefreshIndex();
+                }
+            }
+
+            savedPedsMenu.OnMenuOpen += (_) =>
+            {
+                UpdateSavedPedsMenu();
+            };
+
+            savedPedsMenu.OnItemSelect += (_, item, __) =>
+            {
+                savedPed = item.ItemData;
+                selectedSavedPedMenu.MenuSubtitle = item.Text;
+            };
+
+            if (AddonPeds != null && AddonPeds.Count > 0 && IsAllowed(Permission.PAAddonPeds))
+            {
+                spawnPedsMenu.AddMenuItem(addonPedsBtn);
+                MenuController.BindMenuItem(spawnPedsMenu, addonPedsMenu, addonPedsBtn);
+
+                var addons = AddonPeds.ToList();
+
+                addons.Sort((a, b) => a.Key.ToLower().CompareTo(b.Key.ToLower()));
+
+                foreach (var ped in addons)
+                {
+                    string name = GetLabelText(ped.Key);
+                    if (string.IsNullOrEmpty(name) || name == "NULL")
+                    {
+                        name = ped.Key;
+                    }
+
+                    MenuItem pedBtn = new MenuItem(ped.Key, "Click to spawn this model.") { Label = $"({name})" };
+
+                    if (!IsModelInCdimage(ped.Value) || !IsModelAPed(ped.Value))
+                    {
+                        pedBtn.Enabled = false;
+                        pedBtn.LeftIcon = MenuItem.Icon.LOCK;
+                        pedBtn.Description = "This ped is not (correctly) streamed. If you are the server owner, please ensure that the ped name and model are valid!";
+                    }
+
+                    addonPedsMenu.AddMenuItem(pedBtn);
+                }
+
+                addonPedsMenu.OnItemSelect += async (sender, item, index) =>
+                {
+                    await SetPlayerSkin((uint)GetHashKey(item.Text), new PedInfo() { version = -1 }, true);
+                };
+            }
+
+            if (IsAllowed(Permission.PASpawnNew))
+            {
+                spawnPedsMenu.AddMenuItem(spawnByNameBtn);
+                spawnPedsMenu.AddMenuItem(mainPedsBtn);
+                spawnPedsMenu.AddMenuItem(animalPedsBtn);
+                spawnPedsMenu.AddMenuItem(malePedsBtn);
+                spawnPedsMenu.AddMenuItem(femalePedsBtn);
+                spawnPedsMenu.AddMenuItem(otherPedsBtn);
+
+                MenuController.BindMenuItem(spawnPedsMenu, mainPedsMenu, mainPedsBtn);
+                if (vMenuShared.ConfigManager.GetSettingsBool(vMenuShared.ConfigManager.Setting.vmenu_enable_animals_spawn_menu))
+                {
+                    MenuController.BindMenuItem(spawnPedsMenu, animalsPedsMenu, animalPedsBtn);
                 }
                 else
                 {
-                    addonPedsBtn.Enabled = false;
-                    addonPedsBtn.Description = "This server does not have any addon peds available.";
-                    addonPedsBtn.SetLeftBadge(UIMenuItem.BadgeStyle.Lock);
+                    animalPedsBtn.Enabled = false;
+                    animalPedsBtn.Description = "This is disabled by the server owner, probably for a good reason because animals quite often crash the game.";
+                    animalPedsBtn.LeftIcon = MenuItem.Icon.LOCK;
                 }
+
+                MenuController.BindMenuItem(spawnPedsMenu, malePedsMenu, malePedsBtn);
+                MenuController.BindMenuItem(spawnPedsMenu, femalePedsMenu, femalePedsBtn);
+                MenuController.BindMenuItem(spawnPedsMenu, otherPedsMenu, otherPedsBtn);
+
+                foreach (var animal in animalModels)
+                {
+                    MenuItem animalBtn = new MenuItem(animal.Key, "Click to spawn this animal.") { Label = $"({animal.Value})" };
+                    animalsPedsMenu.AddMenuItem(animalBtn);
+                }
+
+                foreach (var ped in mainModels)
+                {
+                    MenuItem pedBtn = new MenuItem(ped.Key, "Click to spawn this ped.") { Label = $"({ped.Value})" };
+                    mainPedsMenu.AddMenuItem(pedBtn);
+                }
+
+                foreach (var ped in maleModels)
+                {
+                    MenuItem pedBtn = new MenuItem(ped.Key, "Click to spawn this ped.") { Label = $"({ped.Value})" };
+                    malePedsMenu.AddMenuItem(pedBtn);
+                }
+
+                foreach (var ped in femaleModels)
+                {
+                    MenuItem pedBtn = new MenuItem(ped.Key, "Click to spawn this ped.") { Label = $"({ped.Value})" };
+                    femalePedsMenu.AddMenuItem(pedBtn);
+                }
+
+                foreach (var ped in otherPeds)
+                {
+                    MenuItem pedBtn = new MenuItem(ped.Key, "Click to spawn this ped.") { Label = $"({ped.Value})" };
+                    otherPedsMenu.AddMenuItem(pedBtn);
+                }
+
+                async void FilterMenu(Menu m, Control c)
+                {
+                    string input = await GetUserInput("Filter by ped model name, leave this empty to reset the filter");
+                    if (!string.IsNullOrEmpty(input))
+                    {
+                        m.FilterMenuItems((mb) => mb.Label.ToLower().Contains(input.ToLower()) || mb.Text.ToLower().Contains(input.ToLower()));
+                        Subtitle.Custom("Filter applied.");
+                    }
+                    else
+                    {
+                        m.ResetFilter();
+                        Subtitle.Custom("Filter cleared.");
+                    }
+                }
+
+                void ResetMenuFilter(Menu m)
+                {
+                    m.ResetFilter();
+                }
+
+                otherPedsMenu.OnMenuClose += ResetMenuFilter;
+                malePedsMenu.OnMenuClose += ResetMenuFilter;
+                femalePedsMenu.OnMenuClose += ResetMenuFilter;
+
+                otherPedsMenu.InstructionalButtons.Add(Control.Jump, "Filter List");
+                otherPedsMenu.ButtonPressHandlers.Add(new Menu.ButtonPressHandler(Control.Jump, Menu.ControlPressCheckType.JUST_RELEASED, new Action<Menu, Control>(FilterMenu), true));
+
+                malePedsMenu.InstructionalButtons.Add(Control.Jump, "Filter List");
+                malePedsMenu.ButtonPressHandlers.Add(new Menu.ButtonPressHandler(Control.Jump, Menu.ControlPressCheckType.JUST_RELEASED, new Action<Menu, Control>(FilterMenu), true));
+
+                femalePedsMenu.InstructionalButtons.Add(Control.Jump, "Filter List");
+                femalePedsMenu.ButtonPressHandlers.Add(new Menu.ButtonPressHandler(Control.Jump, Menu.ControlPressCheckType.JUST_RELEASED, new Action<Menu, Control>(FilterMenu), true));
+
+
+                async void SpawnPed(Menu m, MenuItem item, int index)
+                {
+
+                    uint model = (uint)GetHashKey(item.Text);
+                    if (m == animalsPedsMenu && !Game.PlayerPed.IsInWater)
+                    {
+                        switch (item.Text)
+                        {
+                            case "a_c_dolphin":
+                            case "a_c_fish":
+                            case "a_c_humpback":
+                            case "a_c_killerwhale":
+                            case "a_c_sharkhammer":
+                            case "a_c_sharktiger":
+                                Notify.Error("This animal can only be spawned when you are in water, otherwise you will die immediately.");
+                                return;
+                            default: break;
+                        }
+                    }
+
+                    if (IsModelInCdimage(model))
+                    {
+                        // for animals we need to remove all weapons, this is because animals have their own weapons which you can't normally get and/or select in the weapon wheel.
+                        // so we clear the weapons to force that specific weapon to be equipped.
+                        if (m == animalsPedsMenu)
+                        {
+                            Game.PlayerPed.Weapons.RemoveAll();
+                            await SetPlayerSkin(model, new PedInfo() { version = -1 }, false);
+                            await Delay(1000);
+                            SetPedComponentVariation(Game.PlayerPed.Handle, 0, 0, 0, 0);
+                            await Delay(1000);
+                            SetPedComponentVariation(Game.PlayerPed.Handle, 0, 0, 1, 0);
+                            await Delay(1000);
+                            SetPedDefaultComponentVariation(Game.PlayerPed.Handle);
+                        }
+                        else
+                        {
+                            await SetPlayerSkin(model, new PedInfo() { version = -1 }, true);
+                        }
+                    }
+                    else
+                    {
+                        Notify.Error(CommonErrors.InvalidModel);
+                    }
+                }
+
+                mainPedsMenu.OnItemSelect += SpawnPed;
+                malePedsMenu.OnItemSelect += SpawnPed;
+                femalePedsMenu.OnItemSelect += SpawnPed;
+                animalsPedsMenu.OnItemSelect += SpawnPed;
+                otherPedsMenu.OnItemSelect += SpawnPed;
+
+                spawnPedsMenu.OnItemSelect += async (sender, item, index) =>
+                {
+                    if (item == spawnByNameBtn)
+                    {
+                        string model = await GetUserInput("Ped Model Name", 30);
+                        if (!string.IsNullOrEmpty(model))
+                        {
+                            await SetPlayerSkin(model, new PedInfo() { version = -1 }, true);
+                        }
+                        else
+                        {
+                            Notify.Error(CommonErrors.InvalidInput);
+                        }
+                    }
+                };
             }
-            else
+
+
+            // Handle list selections.
+            menu.OnListItemSelect += (sender, item, listIndex, itemIndex) =>
             {
-                addonPedsBtn.Enabled = false;
-                addonPedsBtn.Description = "This server does not have any addon peds available.";
-                addonPedsBtn.SetLeftBadge(UIMenuItem.BadgeStyle.Lock);
-            }
-
-            addonPeds.RefreshIndex();
-            addonPeds.UpdateScaleform();
-
-            // Add the spawn by name button after the addon peds menu item.
-            menu.AddItem(spawnByName);
+                if (item == walkingStyle)
+                {
+                    //if (MainMenu.DebugMode) Subtitle.Custom("Ped is: " + IsPedMale(Game.PlayerPed.Handle));
+                    SetWalkingStyle(walkstyles[listIndex].ToString());
+                }
+                if (item == clothingGlowType)
+                {
+                    ClothingAnimationType = item.ListIndex;
+                }
+            };
 
             // Handle button presses.
-            menu.OnItemSelect += (sender, item, index) =>
+            menu.OnItemSelect += async (sender, item, index) =>
             {
                 if (item == pedCustomization)
                 {
                     RefreshCustomizationMenu();
                 }
-                else if (item == spawnSavedPed)
+                else if (item == saveCurrentPed)
                 {
-                    RefreshSpawnSavedPedMenu();
-                }
-                else if (item == deleteSavedPed)
-                {
-                    RefreshDeleteSavedPedMenu();
-                }
-                else if (item == savePed)
-                {
-                    cf.SavePed();
-                }
-                else if (item == spawnByName)
-                {
-                    cf.SpawnPedByName();
+                    if (await SavePed())
+                    {
+                        Notify.Success("Successfully saved your new ped.");
+                    }
+                    else
+                    {
+                        Notify.Error("Could not save your current ped, does that save name already exist?");
+                    }
                 }
             };
 
-            // Loop through all the modelNames and create lists of max 50 ped names each.
-            for (int i = 0; i < (modelNames.Count / 50) + 1; i++)
+
+            #region ped drawable list changes
+            // Manage list changes.
+            pedCustomizationMenu.OnListIndexChange += (sender, item, oldListIndex, newListIndex, itemIndex) =>
             {
-                List<dynamic> pedList = new List<dynamic>();
-                for (int ii = 0; ii < 50; ii++)
+                if (drawablesMenuListItems.ContainsKey(item))
                 {
-                    int index = ((i * 50) + ii);
-                    if (index >= modelNames.Count)
+                    int drawableID = drawablesMenuListItems[item];
+                    SetPedComponentVariation(Game.PlayerPed.Handle, drawableID, newListIndex, 0, 0);
+                }
+                else if (propsMenuListItems.ContainsKey(item))
+                {
+                    int propID = propsMenuListItems[item];
+                    if (newListIndex == 0)
                     {
-                        break;
+                        SetPedPropIndex(Game.PlayerPed.Handle, propID, newListIndex - 1, 0, false);
+                        ClearPedProp(Game.PlayerPed.Handle, propID);
                     }
-                    int max = ((modelNames.Count / 50) != i) ? 50 : modelNames.Count % 50;
-                    pedList.Add(modelNames[index] + $" ({(ii + 1).ToString()}/{max.ToString()})");
-                }
-                UIMenuListItem pedl = new UIMenuListItem("Peds #" + (i + 1).ToString(), pedList, 0);
-
-                menu.AddItem(pedl);
-                if (!cf.IsAllowed(Permission.PASpawnNew))
-                {
-                    pedl.Enabled = false;
-                    pedl.SetLeftBadge(UIMenuItem.BadgeStyle.Lock);
-                    pedl.Description = "This option has been disabled by the server owner.";
-                }
-            }
-
-            // Handle list selections.
-            menu.OnListSelect += (sender, item, index) =>
-            {
-                if (item == walkingStyle)
-                {
-                    Subtitle.Custom("Ped is: " + IsPedMale(PlayerPedId()));
-                    cf.SetWalkingStyle(walkstyles[index].ToString());
-                }
-                else
-                {
-                    int i = ((sender.CurrentSelection - 8) * 50) + index;
-                    string modelName = modelNames[i];
-                    if (cf.IsAllowed(Permission.PASpawnNew))
+                    else
                     {
-                        cf.SetPlayerSkin(modelName, new CommonFunctions.PedInfo() { version = -1 });
+                        SetPedPropIndex(Game.PlayerPed.Handle, propID, newListIndex - 1, 0, true);
                     }
-                }
+                    if (propID == 0)
+                    {
+                        int component = GetPedPropIndex(Game.PlayerPed.Handle, 0);      // helmet index
+                        int texture = GetPedPropTextureIndex(Game.PlayerPed.Handle, 0); // texture
+                        int compHash = GetHashNameForProp(Game.PlayerPed.Handle, 0, component, texture); // prop combination hash
+                        if (N_0xd40aac51e8e4c663((uint)compHash) > 0) // helmet has visor. 
+                        {
+                            if (!IsHelpMessageBeingDisplayed())
+                            {
+                                BeginTextCommandDisplayHelp("TWOSTRINGS");
+                                AddTextComponentSubstringPlayerName("Hold ~INPUT_SWITCH_VISOR~ to flip your helmet visor open or closed");
+                                AddTextComponentSubstringPlayerName("when on foot or on a motorcycle and when vMenu is closed.");
+                                EndTextCommandDisplayHelp(0, false, true, 6000);
+                            }
+                        }
+                    }
 
+                }
             };
+
+            // Manage list selections.
+            pedCustomizationMenu.OnListItemSelect += (sender, item, listIndex, itemIndex) =>
+            {
+                if (drawablesMenuListItems.ContainsKey(item)) // drawable
+                {
+                    int currentDrawableID = drawablesMenuListItems[item];
+                    int currentTextureIndex = GetPedTextureVariation(Game.PlayerPed.Handle, currentDrawableID);
+                    int maxDrawableTextures = GetNumberOfPedTextureVariations(Game.PlayerPed.Handle, currentDrawableID, listIndex) - 1;
+
+                    if (currentTextureIndex == -1)
+                        currentTextureIndex = 0;
+
+                    int newTexture = currentTextureIndex < maxDrawableTextures ? currentTextureIndex + 1 : 0;
+
+                    SetPedComponentVariation(Game.PlayerPed.Handle, currentDrawableID, listIndex, newTexture, 0);
+                }
+                else if (propsMenuListItems.ContainsKey(item)) // prop
+                {
+                    int currentPropIndex = propsMenuListItems[item];
+                    int currentPropVariationIndex = GetPedPropIndex(Game.PlayerPed.Handle, currentPropIndex);
+                    int currentPropTextureVariation = GetPedPropTextureIndex(Game.PlayerPed.Handle, currentPropIndex);
+                    int maxPropTextureVariations = GetNumberOfPedPropTextureVariations(Game.PlayerPed.Handle, currentPropIndex, currentPropVariationIndex) - 1;
+
+                    int newPropTextureVariationIndex = currentPropTextureVariation < maxPropTextureVariations ? currentPropTextureVariation + 1 : 0;
+                    SetPedPropIndex(Game.PlayerPed.Handle, currentPropIndex, currentPropVariationIndex, newPropTextureVariationIndex, true);
+                }
+            };
+            #endregion
+
         }
+
+
         #endregion
 
         #region get the menu
@@ -370,7 +605,7 @@ namespace vMenuClient
         /// Create the menu if it doesn't exist, and then returns it.
         /// </summary>
         /// <returns>The Menu</returns>
-        public UIMenu GetMenu()
+        public Menu GetMenu()
         {
             if (menu == null)
             {
@@ -380,1159 +615,70 @@ namespace vMenuClient
         }
         #endregion
 
-
-        #region Multiplayer ped customization
-        /// <summary>
-        /// Creates the multiplayer ped customization submenu.
-        /// </summary>
-        /// <param name="mpMenu"></param>
-        public void CreateMpPedMenu(UIMenu mpMenu)
-        {
-            #region create submenus
-            // create new model
-            UIMenu newCharacterMenu = new UIMenu("New Character", "Create a new character", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // load existing model
-            UIMenu loadCharacterMenu = new UIMenu("Load Character", "Load an existing character", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // create new male model
-            UIMenu maleMenu = new UIMenu("New Character", "Create a new male character", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // create new female model
-            UIMenu femaleMenu = new UIMenu("New Character", "Create a new female character", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // male appearance
-            UIMenu maleAppearanceMenu = new UIMenu("Male Appearance", "Appearance", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // female appearance
-            UIMenu femaleAppearanceMenu = new UIMenu("Female Appearance", "Appearance", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // male features
-            UIMenu maleFeaturesMenu = new UIMenu("Male Features", "Features", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // female features
-            UIMenu femaleFeaturesMenu = new UIMenu("Female Features", "Features", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // male heritage
-            UIMenu maleHeritageMenu = new UIMenu("Male Heritage", "Heritage", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // female heritage
-            UIMenu femaleHeritageMenu = new UIMenu("Female Heritage", "Features", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // male style
-            UIMenu maleStyleMenu = new UIMenu("Male Style", "Facial and Body Style", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // female style
-            UIMenu femaleStyleMenu = new UIMenu("Female Style", "Facial and Body Style", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            #endregion
-
-
-            #region add submenus to menu pool
-            MainMenu.Mp.Add(newCharacterMenu); // new character menu
-            MainMenu.Mp.Add(loadCharacterMenu); // load character menu
-            MainMenu.Mp.Add(maleMenu); // new male character
-            MainMenu.Mp.Add(femaleMenu); // new female character
-            MainMenu.Mp.Add(maleAppearanceMenu); // male appearance
-            MainMenu.Mp.Add(femaleAppearanceMenu); // female appearance
-            MainMenu.Mp.Add(maleFeaturesMenu); // female features
-            MainMenu.Mp.Add(femaleFeaturesMenu); // female features
-            MainMenu.Mp.Add(femaleHeritageMenu); // female heritage
-            MainMenu.Mp.Add(maleHeritageMenu); // male heritage
-            MainMenu.Mp.Add(femaleStyleMenu); // female style
-            MainMenu.Mp.Add(maleStyleMenu); // male style
-            #endregion
-
-
-            #region add instructional buttons
-            newCharacterMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // new character
-            loadCharacterMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // load character
-            maleMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // new male character
-            femaleMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // new female character
-            maleAppearanceMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // male appearance
-            femaleAppearanceMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // female appearance
-            femaleFeaturesMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // female features
-            maleFeaturesMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // male features
-            maleHeritageMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // male heritage
-            femaleHeritageMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // female heritage
-            maleStyleMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // male style
-            femaleStyleMenu.AddInstructionalButton(new InstructionalButton(Control.LookLeftRight, "Turn Head Left/Right")); // female style
-            #endregion
-
-
-            #region add menus to list
-            mpCharMenus.Add(newCharacterMenu); // new char
-            mpCharMenus.Add(loadCharacterMenu); // load char
-            mpCharMenus.Add(maleMenu); // new male char
-            mpCharMenus.Add(femaleMenu); // new female char
-            mpCharMenus.Add(maleAppearanceMenu); // male appearance
-            mpCharMenus.Add(femaleAppearanceMenu); // female appearance
-            mpCharMenus.Add(maleFeaturesMenu); // male features
-            mpCharMenus.Add(femaleFeaturesMenu); // female features
-            mpCharMenus.Add(maleHeritageMenu); // male heritage
-            mpCharMenus.Add(femaleHeritageMenu); // female heritage
-            mpCharMenus.Add(maleStyleMenu); // male style
-            mpCharMenus.Add(femaleStyleMenu); // female style
-            #endregion
-
-
-            #region create menu items
-            // character customization menu
-            UIMenuItem newCharBtn = new UIMenuItem("New Character", "Create a new multiplayer character.");
-            UIMenuItem loadCharBtn = new UIMenuItem("Load Existing Character", "Load an existing (saved) multiplayer character.");
-
-            // new character menu
-            UIMenuItem male = new UIMenuItem("Create Male Character", "Create a new male multiplayer character.");
-            UIMenuItem female = new UIMenuItem("Create Female Character", "Create a new female multiplayer character.");
-
-            // new male menu (TODO)
-
-            // new female menu
-            UIMenuItem f_Appearance = new UIMenuItem("Appearance", "Make changes to your Appearance.");
-            UIMenuItem f_Features = new UIMenuItem("Features", "Make changes to your Features.");
-            UIMenuItem f_Heritage = new UIMenuItem("Heritage", "Make changes to your Heritage.");
-            UIMenuItem f_Styles = new UIMenuItem("Styles", "Make changes to your Face and Body Style.");
-
-
-            #region female appearance menu.
-            // hair styles 
-            List<dynamic> f_hair_styles = new List<dynamic>() { };
-            for (int i = 0; i < 24; i++)
-            {
-                f_hair_styles.Add(GetLabelText($"CC_F_HS_{i}"));
-            }
-            UIMenuListItem f_hair_style = new UIMenuListItem("Hair Style", f_hair_styles, 0);
-
-            List<dynamic> hair_colors = new List<dynamic>();
-            for (int i = 0; i < 64; i++)
-            {
-                hair_colors.Add($"Hair Color #{i + 1}/64");
-            }
-            UIMenuListItem f_hair_colors = new UIMenuListItem("Hair Color", hair_colors, 0);
-            UIMenuListItem f_hair_hi_colors = new UIMenuListItem("Hair Highlight Color", hair_colors, 0);
-
-
-            // features
-
-            List<dynamic> features_range = new List<dynamic>() { -1f, -0.9f, -0.8f, -0.7f, -0.6f, -0.5f, -0.4f, -0.3f, -0.2f, -0.1f, 0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1f };
-            UIMenuSliderItem f_noseWidth = new UIMenuSliderItem("Nose Width", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_noseHeight = new UIMenuSliderItem("Nose Height", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_noseLength = new UIMenuSliderItem("Nose Length", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_noseLowering = new UIMenuSliderItem("Nose Lowering", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_noseBoneTwist = new UIMenuSliderItem("Nose Bone Twist", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-
-            UIMenuSliderItem f_eyebrowHeight = new UIMenuSliderItem("Eybebrows Height", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_eyebrowForward = new UIMenuSliderItem("Eyebrows Depth", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-
-            UIMenuSliderItem f_cheeksboneHeight = new UIMenuSliderItem("Cheekbones Height", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_cheeksboneWidth = new UIMenuSliderItem("Cheekbones Width", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_cheeksWidth = new UIMenuSliderItem("Cheeks Width", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-
-            UIMenuSliderItem f_eyesOpening = new UIMenuSliderItem("Eyes Opening", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-
-            UIMenuSliderItem f_lipsThickness = new UIMenuSliderItem("Lips Thickness", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-
-            UIMenuSliderItem f_jawBoneWidth = new UIMenuSliderItem("Jaw Bone Width", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_jawBoneBackLength = new UIMenuSliderItem("Jaw Bone Back Length", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-
-            UIMenuSliderItem f_chinBoneLowering = new UIMenuSliderItem("Chin Bone Lowering", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_chinBoneLength = new UIMenuSliderItem("Chin Bone Length", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_chinBoneWidth = new UIMenuSliderItem("Chin Bone Width", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            UIMenuSliderItem f_chinHole = new UIMenuSliderItem("Chin Hole", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-
-            UIMenuSliderItem f_neckThickness = new UIMenuSliderItem("Neck Thickness", features_range, features_range.Count / 2, "Make changes to your Features.", true);
-            #endregion
-
-            #region female heritage menu
-            //UIMenuSliderItem 
-            UIMenuHeritageCardItem heritageCard = new UIMenuHeritageCardItem(0, 0);
-
-
-            // mom
-            List<dynamic> moms = new List<dynamic>();
-            for (var i = 0; i < 21; i++)
-            {
-                moms.Add($"Mom #{i}");
-            }
-            UIMenuListItem mom = new UIMenuListItem("Mom", moms, currentCharacter.Mom);
-
-
-            // dad
-            List<dynamic> dads = new List<dynamic>();
-            for (var i = 0; i < 21; i++)
-            {
-                dads.Add($"Dad #{i}");
-            }
-            UIMenuListItem dad = new UIMenuListItem("Dad", dads, currentCharacter.Dad);
-
-
-            // resemblance
-            UIMenuSliderItem resemblance = new UIMenuSliderItem("Resemblance", features_range, features_range.Count / 2, "Select if your features are influenced more by your Mother or Father.", true);
-            UIMenuSliderItem skinTone = new UIMenuSliderItem("Skin Tone", features_range, features_range.Count / 2, "Select if your skin tone is influenced more by your Mother or Father.", true);
-
-            #endregion
-
-            #region female style menu buttons
-            List<dynamic> blemishes = new List<dynamic>() { "1", "2" };
-            UIMenuListItem f_blemishes = new UIMenuListItem("Blemishes", blemishes, 0); // id == 0
-
-            List<dynamic> eyebrows = new List<dynamic>() { "1", "2" };
-            UIMenuListItem f_eyebrows = new UIMenuListItem("Eyebrows", eyebrows, 0); // id == 2
-
-            List<dynamic> ageing = new List<dynamic>() { "1", "2" };
-            UIMenuListItem f_ageing = new UIMenuListItem("Ageing", ageing, 0); // id == 3
-
-            List<dynamic> blush = new List<dynamic>() { "1", "2" };
-            //UIMenuListItem
-
-            List<dynamic> makeup = new List<dynamic>();
-            for (int i = 0; i < 22; i++)
-            {
-                makeup.Add(GetLabelText("CC_MKUP_11"));
-            }
-            UIMenuListItem f_makeup = new UIMenuListItem("Makeup", makeup, 0); // id == 4
-            #endregion
-
-            // save character buttons
-            UIMenuItem f_saveChar = new UIMenuItem("Save Character", "Save your character, if you don't save your character now, you won't be able to load or edit it later. You also won't be able to save this ped in the 'Saved Peds' menu.");
-            UIMenuItem m_saveChar = new UIMenuItem("Save Character", "Save your character, if you don't save your character now, you won't be able to load or edit it later. You also won't be able to save this ped in the 'Saved Peds' menu.");
-            #endregion
-
-
-
-            #region add items to menus
-            // character customization menu
-            mpMenu.AddItem(newCharBtn);
-            mpMenu.AddItem(loadCharBtn);
-
-            // new character menu
-            newCharacterMenu.AddItem(male);
-            newCharacterMenu.AddItem(female);
-
-            // new female char menu
-            femaleMenu.AddItem(f_Heritage);
-            femaleMenu.AddItem(f_Features);
-            femaleMenu.AddItem(f_Appearance);
-            femaleMenu.AddItem(f_Styles);
-            femaleMenu.AddItem(f_saveChar);
-
-            // female appearance menu
-            femaleAppearanceMenu.AddItem(f_hair_style);
-            femaleAppearanceMenu.AddItem(f_hair_colors);
-            femaleAppearanceMenu.AddItem(f_hair_hi_colors);
-
-            // female features menu
-            femaleFeaturesMenu.AddItem(f_noseWidth);
-            femaleFeaturesMenu.AddItem(f_noseHeight);
-            femaleFeaturesMenu.AddItem(f_noseLength);
-            femaleFeaturesMenu.AddItem(f_noseLowering);
-            femaleFeaturesMenu.AddItem(f_noseBoneTwist);
-
-            femaleFeaturesMenu.AddItem(f_eyebrowHeight);
-            femaleFeaturesMenu.AddItem(f_eyebrowForward);
-
-            femaleFeaturesMenu.AddItem(f_cheeksboneHeight);
-            femaleFeaturesMenu.AddItem(f_cheeksboneWidth);
-            femaleFeaturesMenu.AddItem(f_cheeksWidth);
-
-            femaleFeaturesMenu.AddItem(f_eyesOpening);
-
-            femaleFeaturesMenu.AddItem(f_lipsThickness);
-
-            femaleFeaturesMenu.AddItem(f_jawBoneWidth);
-            femaleFeaturesMenu.AddItem(f_jawBoneBackLength);
-
-            femaleFeaturesMenu.AddItem(f_chinBoneLowering);
-            femaleFeaturesMenu.AddItem(f_chinBoneLength);
-            femaleFeaturesMenu.AddItem(f_chinBoneWidth);
-            femaleFeaturesMenu.AddItem(f_chinHole);
-
-            femaleFeaturesMenu.AddItem(f_neckThickness);
-
-            // female heritage menu
-            femaleHeritageMenu.AddItem(heritageCard);
-            femaleHeritageMenu.AddItem(heritageCard);
-            femaleHeritageMenu.AddItem(heritageCard);
-            femaleHeritageMenu.AddItem(heritageCard);
-            femaleHeritageMenu.AddItem(heritageCard);
-            femaleHeritageMenu.AddItem(heritageCard);
-            femaleHeritageMenu.AddItem(mom);
-            femaleHeritageMenu.AddItem(dad);
-            femaleHeritageMenu.AddItem(resemblance);
-            femaleHeritageMenu.AddItem(skinTone);
-            femaleHeritageMenu.CurrentSelection = femaleHeritageMenu.MenuItems.Count - 5;
-            #endregion
-
-
-            #region bind menus to menu items
-            // character customization menu
-            mpMenu.BindMenuToItem(newCharacterMenu, newCharBtn);
-            mpMenu.BindMenuToItem(loadCharacterMenu, loadCharBtn);
-
-            // new character menu
-            newCharacterMenu.BindMenuToItem(maleMenu, male);
-            newCharacterMenu.BindMenuToItem(femaleMenu, female);
-
-            // female char menu
-            femaleMenu.BindMenuToItem(femaleAppearanceMenu, f_Appearance);
-            femaleMenu.BindMenuToItem(femaleFeaturesMenu, f_Features);
-            femaleMenu.BindMenuToItem(femaleHeritageMenu, f_Heritage);
-
-            #endregion
-
-            //DeleteResourceKvp("mp_char_some cool name");
-
-            #region item select events
-            mpCharMenu.OnItemSelect += async (sender, item, index) =>
-            {
-                if (item == loadCharBtn)
-                {
-                    loadCharacterMenu.Clear();
-                }
-
-                int searchHandle = StartFindKvp("mp_char_");
-                List<string> characterNames = new List<string>();
-                while (true)
-                {
-                    var foundItem = FindKvp(searchHandle);
-                    if (string.IsNullOrEmpty(foundItem))
-                    {
-                        break;
-                    }
-                    else
-                    {
-                        characterNames.Add(foundItem);
-                    }
-                    await BaseScript.Delay(0);
-                }
-                foreach (var name in characterNames)
-                {
-                    UIMenuItem nameItem = new UIMenuItem(name.Substring(8, name.Length - 8), "Press select to load this character.");
-                    loadCharacterMenu.AddItem(nameItem);
-                }
-                loadCharacterMenu.RefreshIndex();
-                loadCharacterMenu.UpdateScaleform();
-            };
-
-            loadCharacterMenu.OnItemSelect += (sender, item, index) =>
-            {
-                var Character = cf.LoadMultiplayerCharacter(item.Text.ToString());
-                if (Character.Valid)
-                {
-                    Notify.Success("Multiplayer character has been loaded.");
-                    SetModel(Character.IsMale);
-                    currentCharacter = Character;
-
-                    // heritage features.
-                    SetPedHeritage();
-                    // hair style.
-                    SetPedComponentVariation(PlayerPedId(), 2, currentCharacter.HairStyle, 0, 0);
-                    // hair colors.
-                    SetPedHairColor(PlayerPedId(), currentCharacter.HairColor, currentCharacter.HairHighlightColor);
-                    // eye color.
-                    SetPedEyeColor(PlayerPedId(), currentCharacter.EyeColor);
-
-                    // facial features.
-                    SetPedFaceFeature(PlayerPedId(), 0, currentCharacter.NoseWidth);
-                    SetPedFaceFeature(PlayerPedId(), 1, currentCharacter.NosePeakHeight);
-                    SetPedFaceFeature(PlayerPedId(), 2, currentCharacter.NosePeakLength);
-                    SetPedFaceFeature(PlayerPedId(), 3, currentCharacter.NosePeakLowering);
-                    SetPedFaceFeature(PlayerPedId(), 4, currentCharacter.NoseBoneTwist);
-                    SetPedFaceFeature(PlayerPedId(), 5, currentCharacter.EyebrowHeight);
-                    SetPedFaceFeature(PlayerPedId(), 6, currentCharacter.EyebrowForward);
-                    SetPedFaceFeature(PlayerPedId(), 7, currentCharacter.CheeksBoneHeight);
-                    SetPedFaceFeature(PlayerPedId(), 8, currentCharacter.CheeksBoneWidth);
-                    SetPedFaceFeature(PlayerPedId(), 9, currentCharacter.CheeksWidth);
-                    SetPedFaceFeature(PlayerPedId(), 10, currentCharacter.EyesOpening);
-                    SetPedFaceFeature(PlayerPedId(), 11, currentCharacter.LipsThickness);
-                    SetPedFaceFeature(PlayerPedId(), 12, currentCharacter.JawBoneWidth);
-                    SetPedFaceFeature(PlayerPedId(), 13, currentCharacter.JawBoneBackLength);
-                    SetPedFaceFeature(PlayerPedId(), 14, currentCharacter.ChinBoneLowering);
-                    SetPedFaceFeature(PlayerPedId(), 15, currentCharacter.ChinBoneLength);
-                    SetPedFaceFeature(PlayerPedId(), 16, currentCharacter.ChinBoneWidth);
-                    SetPedFaceFeature(PlayerPedId(), 17, currentCharacter.ChinHole);
-                    SetPedFaceFeature(PlayerPedId(), 18, currentCharacter.NeckThickness);
-
-                    // facial appearance
-
-
-                    //SetPedFaceFeature(PlayerPedId(), 0, )
-                }
-                else
-                {
-                    Notify.Error("Failed to load.", true, true);
-                }
-            };
-
-            newCharacterMenu.OnItemSelect += (sender, item, index) =>
-            {
-                if (item == male)
-                {
-                    SetModel(true);
-                    currentCharacter = new MpCharacterStyle(true, true);
-                }
-                if (item == female)
-                {
-                    SetModel(false);
-                    currentCharacter = new MpCharacterStyle(false, true);
-                }
-            };
-
-            femaleMenu.OnItemSelect += (sender, item, index) =>
-            {
-                if (item == f_saveChar)
-                {
-                    cf.SaveMultiplayerCharacter(currentCharacter);
-                }
-            };
-            #endregion
-
-
-            #region checkbox events
-
-            #endregion
-
-
-            #region list events
-            femaleHeritageMenu.OnListChange += (sender, item, index) =>
-            {
-                if (item == mom)
-                {
-                    heritageCard.Mom = index;
-                    currentCharacter.Mom = index;
-                    SetPedHeritage();
-                }
-                else if (item == dad)
-                {
-                    heritageCard.Dad = index;
-                    currentCharacter.Dad = index;
-                    SetPedHeritage();
-                }
-            };
-
-            femaleAppearanceMenu.OnListChange += (sender, item, index) =>
-            {
-                if (item == f_hair_style)
-                {
-                    if (index == 0)
-                    {
-                        SetPedComponentVariation(PlayerPedId(), 2, 0, 0, 0);
-                        currentCharacter.HairStyle = 0;
-                    }
-                    else
-                    {
-                        SetPedComponentVariation(PlayerPedId(), 2, index + 25 + 13, 0, 0);
-                        currentCharacter.HairStyle = index + 25 + 13;
-                    }
-                }
-                else if (item == f_hair_colors)
-                {
-                    SetPedHairColor(PlayerPedId(), index, currentCharacter.HairHighlightColor);
-                    currentCharacter.HairColor = index;
-                }
-                else if (item == f_hair_hi_colors)
-                {
-                    SetPedHairColor(PlayerPedId(), currentCharacter.HairColor, index);
-                    currentCharacter.HairHighlightColor = index;
-                }
-            };
-            #endregion
-
-
-            #region slider events
-            femaleFeaturesMenu.OnSliderChange += (sender, item, index) =>
-            {
-                SetPedFaceFeature(PlayerPedId(), sender.MenuItems.IndexOf(item), features_range[index]);
-                //currentCharacter.
-            };
-
-            femaleHeritageMenu.OnSliderChange += (sender, item, index) =>
-            {
-                if (item == resemblance)
-                {
-                    currentCharacter.Resemblance = features_range[index];
-                    SetPedHeritage();
-                }
-                else if (item == skinTone)
-                {
-                    currentCharacter.SkinTone = features_range[index];
-                    SetPedHeritage();
-                }
-            };
-            #endregion
-
-
-
-            #region (working, but unused)
-            //var nose = new List<dynamic>() { -1.0f, -0.9f, -0.8f, -0.7f, -0.6f, -0.5f, -0.4f, -0.3f, -0.2f, -0.1f, 0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f };
-            //UIMenuSliderItem testItem = new UIMenuSliderItem("Nose", nose, 0, "Nose feature", true);
-            //mpMenu.AddItem(testItem);
-            //menu.OnMenuChange += (sender, newMenu, forward) =>
-            //{
-            //    if (newMenu == mpMenu)
-            //    {
-
-            //    }
-            //};
-            //mpMenu.OnSliderChange += (sender, item, index) =>
-            //{
-            //    //Debug.WriteLine(index.ToString());
-            //    Debug.WriteLine(nose[index].ToString());
-
-
-            //    SetPedFaceFeature(PlayerPedId(), 0, nose[index]);
-            //    //var data = 0;
-            //    //GetPedHeadBlendData(PlayerPedId(), ref data);
-            //    //var dat = CitizenFX.Core.Native.Function.Call<dynamic>((CitizenFX.Core.Native.Hash)0x2746BD9D88C5C5D0, PlayerPedId());
-            //    //Debug.WriteLine(dat.ToString());
-            //    //GetPedHeadBlendData()
-            //};
-
-            /*
-            #region tattoo stuff
-            // create submenu.
-            UIMenu tattooMenu = new UIMenu(GetPlayerName(PlayerId()), "MP Character Tattoo Options", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            // create tattoo items. + tattoo menu bind item
-            UIMenuItem tattooMenuBtn = new UIMenuItem("Tattoo Options", "Add or remove a tattoo.");
-            mpMenu.AddItem(tattooMenuBtn);
-            mpMenu.BindMenuToItem(tattooMenu, tattooMenuBtn);
-
-            // add submenu to menu pool.
-            MainMenu.Mp.Add(tattooMenu);
-
-
-
-
-            // create tattoo-submenu submenus.
-
-            #region male tattoos
-            UIMenu maleTattooMenu = new UIMenu("Male Tattoos", "Male Tattoo Options", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            UIMenu maleHead = new UIMenu("Male Tattoos", "Male Head Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            UIMenu maleLeftArm = new UIMenu("Male Tattoos", "Male Left Arm Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            UIMenu maleRightArm = new UIMenu("Male Tattoos", "Male Right Arm Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            UIMenu maleLeftLeg = new UIMenu("Male Tattoos", "Male Left Leg Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            UIMenu maleRightLeg = new UIMenu("Male Tattoos", "Male Right Leg Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            UIMenu maleTorso = new UIMenu("Male Tattoos", "Male Torso Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            #endregion
-
-            #region female tattoos
-            UIMenu femaleTattooMenu = new UIMenu("Female Tattoos", "Female Tattoo Options", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-
-            UIMenu femaleHead = new UIMenu("Female Tattoos", "Female Head Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            UIMenu femaleLeftArm = new UIMenu("Female Tattoos", "Female Left Arm Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            UIMenu femaleRightArm = new UIMenu("Female Tattoos", "Female Right Arm Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            UIMenu femaleLeftLeg = new UIMenu("Female Tattoos", "Female Left Leg Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            UIMenu femaleRightLeg = new UIMenu("Female Tattoos", "Female Right Leg Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            UIMenu femaleTorso = new UIMenu("Female Tattoos", "Female Torso Tattoos", true)
-            {
-                ControlDisablingEnabled = false,
-                MouseControlsEnabled = false,
-                MouseEdgeEnabled = false,
-                ScaleWithSafezone = false
-            };
-            #endregion
-
-
-
-            MainMenu.Mp.Add(maleTattooMenu);
-
-            MainMenu.Mp.Add(maleHead);
-            MainMenu.Mp.Add(maleLeftArm);
-            MainMenu.Mp.Add(maleRightArm);
-            MainMenu.Mp.Add(maleLeftLeg);
-            MainMenu.Mp.Add(maleRightLeg);
-            MainMenu.Mp.Add(maleTorso);
-
-
-            MainMenu.Mp.Add(femaleTattooMenu);
-
-            MainMenu.Mp.Add(femaleHead);
-            MainMenu.Mp.Add(femaleLeftArm);
-            MainMenu.Mp.Add(femaleRightArm);
-            MainMenu.Mp.Add(femaleLeftLeg);
-            MainMenu.Mp.Add(femaleRightLeg);
-            MainMenu.Mp.Add(femaleTorso);
-
-
-
-            UIMenuItem maleTattooMenuBtn = new UIMenuItem("Male Tattoos", "Male tattoo options.");
-            tattooMenu.AddItem(maleTattooMenuBtn);
-            tattooMenu.BindMenuToItem(maleTattooMenu, maleTattooMenuBtn);
-
-
-            UIMenuItem femaleTattooMenuBtn = new UIMenuItem("Female Tattoos", "Female tattoo options.");
-            tattooMenu.AddItem(femaleTattooMenuBtn);
-            tattooMenu.BindMenuToItem(femaleTattooMenu, femaleTattooMenuBtn);
-
-            // male tattoo categories
-            UIMenuItem maleHeadBtn = new UIMenuItem("Head");
-            maleTattooMenu.AddItem(maleHeadBtn);
-            maleTattooMenu.BindMenuToItem(maleHead, maleHeadBtn);
-            UIMenuItem maleLeftArmBtn = new UIMenuItem("Left Arm");
-            maleTattooMenu.AddItem(maleLeftArmBtn);
-            maleTattooMenu.BindMenuToItem(maleLeftArm, maleLeftArmBtn);
-            UIMenuItem maleRightArmBtn = new UIMenuItem("Right Arm");
-            maleTattooMenu.AddItem(maleRightArmBtn);
-            maleTattooMenu.BindMenuToItem(maleRightArm, maleRightArmBtn);
-            UIMenuItem maleLeftLegBtn = new UIMenuItem("Left Leg");
-            maleTattooMenu.AddItem(maleLeftLegBtn);
-            maleTattooMenu.BindMenuToItem(maleLeftLeg, maleLeftLegBtn);
-            UIMenuItem maleRightLegBtn = new UIMenuItem("Right Leg");
-            maleTattooMenu.AddItem(maleRightLegBtn);
-            maleTattooMenu.BindMenuToItem(maleRightLeg, maleRightLegBtn);
-            UIMenuItem maleTorsoBtn = new UIMenuItem("Torso");
-            maleTattooMenu.AddItem(maleTorsoBtn);
-            maleTattooMenu.BindMenuToItem(maleTorso, maleTorsoBtn);
-
-
-            // female tattoo categories
-            UIMenuItem femaleHeadBtn = new UIMenuItem("Head");
-            femaleTattooMenu.AddItem(femaleHeadBtn);
-            femaleTattooMenu.BindMenuToItem(femaleHead, femaleHeadBtn);
-            UIMenuItem femaleLeftArmBtn = new UIMenuItem("Left Arm");
-            femaleTattooMenu.AddItem(femaleLeftArmBtn);
-            femaleTattooMenu.BindMenuToItem(femaleLeftArm, femaleLeftArmBtn);
-            UIMenuItem femaleRightArmBtn = new UIMenuItem("Right Arm");
-            femaleTattooMenu.AddItem(femaleRightArmBtn);
-            femaleTattooMenu.BindMenuToItem(femaleRightArm, femaleRightArmBtn);
-            UIMenuItem femaleLeftLegBtn = new UIMenuItem("Left Leg");
-            femaleTattooMenu.AddItem(femaleLeftLegBtn);
-            femaleTattooMenu.BindMenuToItem(femaleLeftLeg, femaleLeftLegBtn);
-            UIMenuItem femaleRightLegBtn = new UIMenuItem("Right Leg");
-            femaleTattooMenu.AddItem(femaleRightLegBtn);
-            femaleTattooMenu.BindMenuToItem(femaleRightLeg, femaleRightLegBtn);
-            UIMenuItem femaleTorsoBtn = new UIMenuItem("Torso");
-            femaleTattooMenu.AddItem(femaleTorsoBtn);
-            femaleTattooMenu.BindMenuToItem(femaleTorso, femaleTorsoBtn);
-
-
-            foreach (var tattoo in tattoosList)
-            {
-                UIMenuItem item = new UIMenuItem($"{GetLabelText(tattoo.displayName)}", tattoo.name);
-                switch (tattoo.gender)
-                {
-                    case PedGender.FEMALE:
-                        switch (tattoo.zone)
-                        {
-                            case "HEAD":
-                                femaleHead.AddItem(item);
-                                break;
-                            case "LEFT_ARM":
-                                femaleLeftArm.AddItem(item);
-                                break;
-                            case "RIGHT_ARM":
-                                femaleRightArm.AddItem(item);
-                                break;
-                            case "LEFT_LEG":
-                                femaleLeftLeg.AddItem(item);
-                                break;
-                            case "RIGHT_LEG":
-                                femaleRightLeg.AddItem(item);
-                                break;
-                            case "TORSO":
-                                femaleTorso.AddItem(item);
-                                break;
-                            default: break;
-                        }
-                        break;
-                    case PedGender.MALE:
-                        switch (tattoo.zone)
-                        {
-                            case "HEAD":
-                                maleHead.AddItem(item);
-                                break;
-                            case "LEFT_ARM":
-                                maleLeftArm.AddItem(item);
-                                break;
-                            case "RIGHT_ARM":
-                                maleRightArm.AddItem(item);
-                                break;
-                            case "LEFT_LEG":
-                                maleLeftLeg.AddItem(item);
-                                break;
-                            case "RIGHT_LEG":
-                                maleRightLeg.AddItem(item);
-                                break;
-                            case "TORSO":
-                                maleTorso.AddItem(item);
-                                break;
-                            default: break;
-                        }
-                        break;
-                    default: break;
-                }
-            }
-
-            maleTorso.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-            maleLeftArm.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-            maleRightArm.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-            maleLeftLeg.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-            maleRightLeg.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-            maleHead.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-
-            femaleTorso.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-            femaleLeftArm.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-            femaleRightArm.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-            femaleLeftLeg.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-            femaleRightLeg.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-            femaleHead.OnItemSelect += (sender, item, index) => EnableTattoo(sender, item, index);
-
-            maleTorso.RefreshIndex();
-            maleTorso.UpdateScaleform();
-            maleLeftArm.RefreshIndex();
-            maleLeftArm.UpdateScaleform();
-            maleRightArm.RefreshIndex();
-            maleRightArm.UpdateScaleform();
-            maleLeftLeg.RefreshIndex();
-            maleLeftLeg.UpdateScaleform();
-            maleRightLeg.RefreshIndex();
-            maleRightLeg.UpdateScaleform();
-            maleHead.RefreshIndex();
-            maleHead.UpdateScaleform();
-
-            femaleTorso.RefreshIndex();
-            femaleTorso.UpdateScaleform();
-            femaleLeftArm.RefreshIndex();
-            femaleLeftArm.UpdateScaleform();
-            femaleRightArm.RefreshIndex();
-            femaleRightArm.UpdateScaleform();
-            femaleLeftLeg.RefreshIndex();
-            femaleLeftLeg.UpdateScaleform();
-            femaleRightLeg.RefreshIndex();
-            femaleRightLeg.UpdateScaleform();
-            femaleHead.RefreshIndex();
-            femaleHead.UpdateScaleform();
-
-            //update the menu.
-            tattooMenu.RefreshIndex();
-            tattooMenu.UpdateScaleform();
-            #endregion
-
-            // create items.
-            UIMenuItem backBtn = new UIMenuItem("Back", "Go back to the previous menu.");
-
-
-            // add items to the submenu.
-
-            mpMenu.AddItem(backBtn);
-
-
-            // add event listener for slider changes.
-
-            // add event listener for checkbox changes.
-
-            // add event listener for list changes.
-
-            // add event listener for list selection events.
-
-
-
-
-
-            // add event listener for item select events.
-            mpMenu.OnItemSelect += (sender, item, index) =>
-            {
-                // go back.
-                if (item == backBtn)
-                {
-                    mpMenu.GoBack();
-                }
-            };
-
-            // update stuff.
-            mpMenu.RefreshIndex();
-            mpMenu.UpdateScaleform();
-            
-            */
-
-            #endregion
-        }
-        #endregion
-
-        private void SetPedHeritage()
-        {
-            float Resemblance = (currentCharacter.Resemblance + 1f) / 2f;
-            float SkinTone = (currentCharacter.SkinTone + 1f) / 2f;
-            float thirdF = 0f;
-            //float thirdF = (Resemblance + SkinTone) / 2f;
-
-            int dad = currentCharacter.Dad;
-            int mom = currentCharacter.Mom;
-            int third = 0;
-            SetPedHeadBlendData(PlayerPedId(), mom, dad, third, mom, dad, third, Resemblance, SkinTone, thirdF, false);
-        }
-
-        private async void SetModel(bool male)
-        {
-            uint model = male ? (uint)GetHashKey("mp_m_freemode_01") : (uint)GetHashKey("mp_f_freemode_01");
-
-            if (IsModelInCdimage(model))
-            {
-                if (!HasModelLoaded(model))
-                {
-                    RequestModel(model);
-                }
-                while (!HasModelLoaded(model))
-                {
-                    await BaseScript.Delay(0);
-                }
-                SetPlayerModel(PlayerId(), model);
-                SetPedDefaultComponentVariation(PlayerPedId());
-                SetPedHeadBlendData(PlayerPedId(), 0, 0, 0, 0, 0, 0, 0f, 0f, 0f, false);
-            }
-
-        }
-
-        #region Enable Tattoo function
-        /// <summary>
-        /// Enables the tattoo overlay.
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="item"></param>
-        /// <param name="index"></param>
-        private void EnableTattoo(UIMenu sender, UIMenuItem item, int index)
-        {
-            if (GetEntityModel(PlayerPedId()) == (uint)GetHashKey("mp_m_freemode_01")) // ped is male.
-            {
-                Tattoo tat = tattoosList.Find((th) => GetLabelText(th.displayName) == item.Text);
-                if (tat.gender == PedGender.MALE || tat.gender == PedGender.UNISEX)
-                {
-                    ClearPedDecorations(PlayerPedId());
-                    SetPedDecoration(PlayerPedId(), (uint)GetHashKey(tat.collection), (uint)GetHashKey(tat.name));
-                }
-                else
-                {
-                    Notify.Error("This tattoo is not available for male peds.");
-                }
-            }
-            else if (GetEntityModel(PlayerPedId()) == (uint)GetHashKey("mp_f_freemode_01")) // ped is female.
-            {
-                Tattoo tat = tattoosList.Find((th) => GetLabelText(th.displayName) == item.Text);
-                if (tat.gender == PedGender.FEMALE || tat.gender == PedGender.UNISEX)
-                {
-                    ClearPedDecorations(PlayerPedId());
-                    SetPedDecoration(PlayerPedId(), (uint)GetHashKey(tat.collection), (uint)GetHashKey(tat.name));
-                }
-                else
-                {
-                    Notify.Error("This tattoo is not available for female peds.");
-                }
-
-            }
-        }
-        #endregion
-
         #region Ped Customization Menu
-        /// <summary>
-        /// Refresh/create the ped customization menu.
-        /// </summary>
+        ///// <summary>
+        ///// Refresh/create the ped customization menu.
+        ///// </summary>
         private void RefreshCustomizationMenu()
         {
-            // Remove any old items.
-            pedTextures.MenuItems.Clear();
+            drawablesMenuListItems.Clear();
+            propsMenuListItems.Clear();
+            pedCustomizationMenu.ClearMenuItems();
 
-            #region Loop through all ped drawable variations and all ped props.
-            for (var i = 0; i < 17; i++)
+            #region Ped Drawables
+            for (int drawable = 0; drawable < 12; drawable++)
             {
-                #region Ped Drawable Variations
-                //if (i < 12)
-                if (i < 12)
+                int currentDrawable = GetPedDrawableVariation(Game.PlayerPed.Handle, drawable);
+                int maxVariations = GetNumberOfPedDrawableVariations(Game.PlayerPed.Handle, drawable);
+                int maxTextures = GetNumberOfPedTextureVariations(Game.PlayerPed.Handle, drawable, currentDrawable);
+
+                if (maxVariations > 0)
                 {
-                    // Get the drawable information.
-                    var currentDrawable = GetPedDrawableVariation(PlayerPedId(), i);
-                    var variations = GetNumberOfPedDrawableVariations(PlayerPedId(), i);
-                    var textures = GetNumberOfPedTextureVariations(PlayerPedId(), i, currentDrawable);
-                    // If there are any variations.
-                    if (variations > 0)
+                    List<string> drawableTexturesList = new List<string>();
+
+                    for (int i = 0; i < maxVariations; i++)
                     {
-                        // Loop through all of them and add them to the list.
-                        var textureList = new List<dynamic>();
-                        for (var x = 0; x < variations; x++)
-                        {
-                            textureList.Add("Item #" + x.ToString());
-                        }
-                        UIMenuListItem listItem = new UIMenuListItem($"{textureNames[i]}", textureList, currentDrawable,
-                            $"Use ← & → to select a ~o~{textureNames[i]} Variation~s~, press ~r~enter~s~ to cycle through the available textures.");
-                        pedTextures.AddItem(listItem);
-
-                        // Manage list changes.
-                        pedTextures.OnListChange += (sender2, item2, index2) =>
-                        {
-                            if (item2 == listItem)
-                            {
-                                SetPedComponentVariation(PlayerPedId(), sender2.CurrentSelection, index2, 0, 0);
-                            }
-                        };
-
-                        // Manage list selections.
-                        pedTextures.OnListSelect += (sender2, item2, index2) =>
-                        {
-                            if (item2 == listItem)
-                            {
-                                var currentTexture = GetPedTextureVariation(PlayerPedId(), sender2.CurrentSelection);
-                                currentTexture = currentTexture == -1 ? 0 : currentTexture;
-                                var totalTextures = GetNumberOfPedTextureVariations(PlayerPedId(), sender2.CurrentSelection, index2) - 1;
-
-                                SetPedComponentVariation(PlayerPedId(), sender2.CurrentSelection, index2, (currentTexture < totalTextures ? currentTexture + 1 : 0), 0);
-                            }
-                        };
+                        drawableTexturesList.Add($"Drawable #{i + 1} (of {maxVariations})");
                     }
-                    else
-                    {
-                        UIMenuItem placeholder = new UIMenuItem($"{textureNames[i]}");
-                        placeholder.SetRightLabel("None");
-                        placeholder.SetLeftBadge(UIMenuItem.BadgeStyle.Lock);
-                        placeholder.Enabled = false;
-                        pedTextures.AddItem(placeholder);
-                    }
+
+                    MenuListItem drawableTextures = new MenuListItem($"{textureNames[drawable]}", drawableTexturesList, currentDrawable, $"Use ← & → to select a ~o~{textureNames[drawable]} Variation~s~, press ~r~enter~s~ to cycle through the available textures.");
+                    drawablesMenuListItems.Add(drawableTextures, drawable);
+                    pedCustomizationMenu.AddMenuItem(drawableTextures);
                 }
-                #endregion
-                #region Ped Props
-                else
-                {
-                    // Variables setup.
-                    var ii = i - 12;// 20;
-                    if (ii > 2)
-                    {
-                        ii += 3;
-                    }
-                    var currentProp = GetPedPropIndex(PlayerPedId(), ii);
-                    var props = GetNumberOfPedPropDrawableVariations(PlayerPedId(), ii);
-                    // If there are any props.
-                    if (props > 0)
-                    {
-                        // Loop through all of them and add them to lists.
-                        var propsList = new List<dynamic>();
-                        for (var x = 0; x < props; x++)
-                        {
-                            propsList.Add("Item #" + x.ToString());
-                        }
-
-                        // Add an "off" item to the list to allow the prop to be turned off.
-                        propsList.Add("Off");
-
-                        // Create and add the list item to the menu.
-                        UIMenuListItem listItem = new UIMenuListItem($"{propNames[ii > 2 ? ii - 3 : ii]}", propsList, currentProp,
-                            $"Use ← & → to select a ~o~{propNames[ii > 2 ? ii - 3 : ii]} Variation~s~, press ~r~enter~s~ to cycle through the available textures.");
-
-                        pedTextures.AddItem(listItem);
-
-                        // Handle list changes.
-                        pedTextures.OnListChange += (sender2, item2, index2) =>
-                        {
-                            if (item2 == listItem)
-                            {
-                                if (index2 == propsList.Count - 1)
-                                {
-                                    ClearPedProp(PlayerPedId(), (sender2.CurrentSelection - textureNames.Count) +
-                                        ((sender2.CurrentSelection - textureNames.Count) > 2 ? 3 : 0));
-                                }
-                                else
-                                {
-                                    SetPedPropIndex(PlayerPedId(), (sender2.CurrentSelection - textureNames.Count) +
-                                        ((sender2.CurrentSelection - textureNames.Count) > 2 ? 3 : 0), index2, 0, true);
-                                }
-                            }
-                        };
-
-                        // Handle list selections.
-                        pedTextures.OnListSelect += (sender2, item2, index2) =>
-                        {
-                            if (item2 == listItem)
-                            {
-                                if (index2 != propsList.Count - 1)
-                                {
-                                    var propTextureCount = GetNumberOfPedPropTextureVariations(PlayerPedId(),
-                                        (sender2.CurrentSelection - textureNames.Count) + ((sender2.CurrentSelection - textureNames.Count) > 2 ? 3 : 0), index2);
-                                    var propCurrentTexture = GetPedPropTextureIndex(PlayerPedId(),
-                                        (sender2.CurrentSelection - textureNames.Count) + ((sender2.CurrentSelection - textureNames.Count) > 2 ? 3 : 0));
-                                    SetPedPropIndex(PlayerPedId(), (sender2.CurrentSelection - textureNames.Count) +
-                                        ((sender2.CurrentSelection - textureNames.Count) > 2 ? 3 : 0), index2,
-                                        (propCurrentTexture + 1 < propTextureCount ? propCurrentTexture + 1 : 0), true);
-                                }
-                            }
-                        };
-                    }
-                    // If there's not enough variations available (none at all) then add a placeholder to let them know this option is unavailable.
-                    else
-                    {
-                        UIMenuItem placeholder = new UIMenuItem($"{propNames[ii > 2 ? ii - 3 : ii]}");
-                        placeholder.SetRightLabel("None");
-                        placeholder.SetLeftBadge(UIMenuItem.BadgeStyle.Lock);
-                        placeholder.Enabled = false;
-                        pedTextures.AddItem(placeholder);
-                    }
-                }
-                #endregion
             }
             #endregion
 
-            // Refresh index and update scaleform to make everything pretty.
-            pedTextures.RefreshIndex();
-            pedTextures.UpdateScaleform();
+            #region Ped Props
+            for (int tmpProp = 0; tmpProp < 5; tmpProp++)
+            {
+                int realProp = tmpProp > 2 ? tmpProp + 3 : tmpProp;
 
+                int currentProp = GetPedPropIndex(Game.PlayerPed.Handle, realProp);
+                int maxPropVariations = GetNumberOfPedPropDrawableVariations(Game.PlayerPed.Handle, realProp);
+
+                if (maxPropVariations > 0)
+                {
+                    List<string> propTexturesList = new List<string>();
+
+                    propTexturesList.Add($"Prop #1 (of {maxPropVariations + 1})");
+                    for (int i = 0; i < maxPropVariations; i++)
+                    {
+                        propTexturesList.Add($"Prop #{i + 2} (of {maxPropVariations + 1})");
+                    }
+
+
+                    MenuListItem propTextures = new MenuListItem($"{propNames[tmpProp]}", propTexturesList, currentProp + 1, $"Use ← & → to select a ~o~{propNames[tmpProp]} Variation~s~, press ~r~enter~s~ to cycle through the available textures.");
+                    propsMenuListItems.Add(propTextures, realProp);
+                    pedCustomizationMenu.AddMenuItem(propTextures);
+
+                }
+            }
+            pedCustomizationMenu.RefreshIndex();
+            #endregion
         }
 
         #region Textures & Props
-        private List<string> textureNames = new List<string>()
+        private readonly List<string> textureNames = new List<string>()
         {
             "Head",
             "Mask / Facial Hair",
@@ -1548,7 +694,7 @@ namespace vMenuClient
             "Shirt Overlay / Jackets",
         };
 
-        private List<string> propNames = new List<string>()
+        private readonly List<string> propNames = new List<string>()
         {
             "Hats / Helmets", // id 0
             "Glasses", // id 1
@@ -1559,1654 +705,1088 @@ namespace vMenuClient
         #endregion
         #endregion
 
+
         #region saved peds menus
-        /// <summary>
-        /// Refresh the spawn saved peds menu.
-        /// </summary>
-        private void RefreshSpawnSavedPedMenu()
-        {
-            spawnSavedPedMenu.MenuItems.Clear();
-            int findHandle = StartFindKvp("ped_");
-            List<string> savesFound = new List<string>();
-            var i = 0;
-            while (true)
-            {
-                i++;
-                var saveName = FindKvp(findHandle);
-                if (saveName != null && saveName != "" && saveName != "NULL")
-                {
-                    // It's already the new format, so add it.
-                    savesFound.Add(saveName);
-                }
-                else
-                {
-                    break;
-                }
-            }
+        ///// <summary>
+        ///// Refresh the spawn saved peds menu.
+        ///// </summary>
+        //private void RefreshSpawnSavedPedMenu()
+        //{
+        //    spawnSavedPedMenu.ClearMenuItems();
+        //    int findHandle = StartFindKvp("ped_");
+        //    List<string> savesFound = new List<string>();
+        //    var i = 0;
+        //    while (true)
+        //    {
+        //        i++;
+        //        var saveName = FindKvp(findHandle);
+        //        if (saveName != null && saveName != "" && saveName != "NULL")
+        //        {
+        //            // It's already the new format, so add it.
+        //            savesFound.Add(saveName);
+        //        }
+        //        else
+        //        {
+        //            break;
+        //        }
+        //    }
 
-            var items = new List<string>();
-            foreach (var savename in savesFound)
-            {
-                if (savename.Length > 4)
-                {
-                    var title = savename.Substring(4);
-                    if (!items.Contains(title))
-                    {
-                        UIMenuItem savedPedBtn = new UIMenuItem(title, "Spawn this saved ped.");
-                        spawnSavedPedMenu.AddItem(savedPedBtn);
-                        items.Add(title);
-                    }
-                }
-            }
+        //    var items = new List<string>();
+        //    foreach (var savename in savesFound)
+        //    {
+        //        if (savename.Length > 4)
+        //        {
+        //            var title = savename.Substring(4);
+        //            if (!items.Contains(title))
+        //            {
+        //                MenuItem savedPedBtn = new MenuItem(title, "Spawn this saved ped.");
+        //                spawnSavedPedMenu.AddMenuItem(savedPedBtn);
+        //                items.Add(title);
+        //            }
+        //        }
+        //    }
 
-            // Sort the menu items (case IN-sensitive) by name.
-            spawnSavedPedMenu.MenuItems.Sort((pair1, pair2) => pair1.Text.ToString().ToLower().CompareTo(pair2.Text.ToString().ToLower()));
+        //    // Sort the menu items (case IN-sensitive) by name.
+        //    spawnSavedPedMenu.SortMenuItems((pair1, pair2) => pair1.Text.ToString().ToLower().CompareTo(pair2.Text.ToString().ToLower()));
 
-            spawnSavedPedMenu.OnItemSelect += (sender, item, idex) =>
-            {
-                var name = item.Text.ToString();
-                cf.LoadSavedPed(name);
+        //    spawnSavedPedMenu.RefreshIndex();
+        //    //spawnSavedPedMenu.UpdateScaleform();
+        //}
 
-            };
+        ///// <summary>
+        ///// Refresh the delete saved peds menu.
+        ///// </summary>
+        //private void RefreshDeleteSavedPedMenu()
+        //{
+        //    deleteSavedPedMenu.ClearMenuItems();
+        //    int findHandle = StartFindKvp("ped_");
+        //    List<string> savesFound = new List<string>();
+        //    while (true)
+        //    {
+        //        var saveName = FindKvp(findHandle);
+        //        if (saveName != null && saveName != "" && saveName != "NULL")
+        //        {
+        //            savesFound.Add(saveName);
+        //        }
+        //        else
+        //        {
+        //            break;
+        //        }
+        //    }
+        //    foreach (var savename in savesFound)
+        //    {
+        //        MenuItem deleteSavedPed = new MenuItem(savename.Substring(4), "~r~Delete ~s~this saved ped, this action can ~r~NOT~s~ be undone!")
+        //        {
+        //            LeftIcon = MenuItem.Icon.WARNING
+        //        };
+        //        deleteSavedPedMenu.AddMenuItem(deleteSavedPed);
+        //    }
 
-            spawnSavedPedMenu.RefreshIndex();
-            spawnSavedPedMenu.UpdateScaleform();
-        }
+        //    // Sort the menu items (case IN-sensitive) by name.
+        //    deleteSavedPedMenu.SortMenuItems((pair1, pair2) => pair1.Text.ToString().ToLower().CompareTo(pair2.Text.ToString().ToLower()));
 
-        /// <summary>
-        /// Refresh the delete saved peds menu.
-        /// </summary>
-        private void RefreshDeleteSavedPedMenu()
-        {
-            deleteSavedPedMenu.MenuItems.Clear();
-            int findHandle = StartFindKvp("ped_");
-            List<string> savesFound = new List<string>();
-            while (true)
-            {
-                var saveName = FindKvp(findHandle);
-                if (saveName != null && saveName != "" && saveName != "NULL")
-                {
-                    savesFound.Add(saveName);
-                }
-                else
-                {
-                    break;
-                }
-            }
-            foreach (var savename in savesFound)
-            {
-                UIMenuItem deleteSavedPed = new UIMenuItem(savename.Substring(4), "~r~Delete ~s~this saved ped, this action can ~r~NOT~s~ be undone!");
-                deleteSavedPed.SetLeftBadge(UIMenuItem.BadgeStyle.Alert);
-                deleteSavedPedMenu.AddItem(deleteSavedPed);
-            }
+        //    deleteSavedPedMenu.OnItemSelect += (sender, item, idex) =>
+        //    {
+        //        var name = item.Text.ToString();
+        //        StorageManager.DeleteSavedStorageItem("ped_" + name);
+        //        Notify.Success("Saved ped deleted.");
+        //        deleteSavedPedMenu.GoBack();
+        //    };
 
-            // Sort the menu items (case IN-sensitive) by name.
-            deleteSavedPedMenu.MenuItems.Sort((pair1, pair2) => pair1.Text.ToString().ToLower().CompareTo(pair2.Text.ToString().ToLower()));
-
-            deleteSavedPedMenu.OnItemSelect += (sender, item, idex) =>
-            {
-                var name = item.Text.ToString();
-                sm.DeleteSavedStorageItem("ped_" + name);
-                Notify.Success("Saved ped deleted.");
-                deleteSavedPedMenu.GoBack();
-            };
-
-            deleteSavedPedMenu.RefreshIndex();
-            deleteSavedPedMenu.UpdateScaleform();
-        }
+        //    deleteSavedPedMenu.RefreshIndex();
+        //    //deleteSavedPedMenu.UpdateScaleform();
+        //}
         #endregion
+
+        //private List<string> stuff = new List<string>()
+        //    {
+        //        "csb_abigail",
+        //    "csb_anita",
+        //    "csb_anton",
+        //    "csb_ballasog",
+        //    "csb_bride",
+        //    "csb_burgerdrug",
+        //    "csb_car3guy1",
+        //    "csb_car3guy2",
+        //    "csb_chef",
+        //    "csb_chin_goon",
+        //    "csb_cletus",
+        //    "csb_cop",
+        //    "csb_customer",
+        //    "csb_denise_friend",
+        //    "csb_fos_rep",
+        //    "csb_groom",
+        //    "csb_grove_str_dlr",
+        //    "csb_g",
+        //    "csb_hao",
+        //    "csb_hugh",
+        //    "csb_imran",
+        //    "csb_janitor",
+        //    "csb_maude",
+        //    "csb_mweather",
+        //    "csb_ortega",
+        //    "csb_oscar",
+        //    "csb_porndudes",
+        //    "csb_prologuedriver",
+        //    "csb_prolsec",
+        //    "csb_ramp_gang",
+        //    "csb_ramp_hic",
+        //    "csb_ramp_hipster",
+        //    "csb_ramp_marine",
+        //    "csb_ramp_mex",
+        //    "csb_reporter",
+        //    "csb_roccopelosi",
+        //    "csb_screen_writer",
+        //    "csb_stripper_01",
+        //    "csb_stripper_02",
+        //    "csb_tonya",
+        //    "csb_trafficwarden",
+        //    "g_f_y_ballas_01",
+        //    "g_f_y_families_01",
+        //    "g_f_y_lost_01",
+        //    "g_f_y_vagos_01",
+        //    "g_m_m_armboss_01",
+        //    "g_m_m_armgoon_01",
+        //    "g_m_m_armlieut_01",
+        //    "g_m_m_chemwork_01",
+        //    "g_m_m_chiboss_01",
+        //    "g_m_m_chicold_01",
+        //    "g_m_m_chigoon_01",
+        //    "g_m_m_chigoon_02",
+        //    "g_m_m_korboss_01",
+        //    "g_m_m_mexboss_01",
+        //    "g_m_m_mexboss_02",
+        //    "g_m_y_armgoon_02",
+        //    "g_m_y_azteca_01",
+        //    "g_m_y_ballaeast_01",
+        //    "g_m_y_ballaorig_01",
+        //    "g_m_y_ballasout_01",
+        //    "g_m_y_famca_01",
+        //    "g_m_y_famdnf_01",
+        //    "g_m_y_famfor_01",
+        //    "g_m_y_korean_01",
+        //    "g_m_y_korean_02",
+        //    "g_m_y_korlieut_01",
+        //    "g_m_y_lost_01",
+        //    "g_m_y_lost_02",
+        //    "g_m_y_lost_03",
+        //    "g_m_y_mexgang_01",
+        //    "g_m_y_mexgoon_01",
+        //    "g_m_y_mexgoon_02",
+        //    "g_m_y_mexgoon_03",
+        //    "g_m_y_pologoon_01",
+        //    "g_m_y_pologoon_02",
+        //    "g_m_y_salvaboss_01",
+        //    "g_m_y_salvagoon_01",
+        //    "g_m_y_salvagoon_02",
+        //    "g_m_y_salvagoon_03",
+        //    "g_m_y_strpunk_01",
+        //    "g_m_y_strpunk_02",
+        //    "hc_driver",
+        //    "hc_gunman",
+        //    "hc_hacker",
+        //    "ig_abigail",
+        //    "ig_amandatownley",
+        //    "ig_andreas",
+        //    "ig_ashley",
+        //    "ig_ballasog",
+        //    "ig_bankman",
+        //    "ig_barry",
+        //    "ig_bestmen",
+        //    "ig_beverly",
+        //    "ig_brad",
+        //    "ig_bride",
+        //    "ig_car3guy1",
+        //    "ig_car3guy2",
+        //    "ig_casey",
+        //    "ig_chef",
+        //    "ig_chengsr",
+        //    "ig_chrisformage",
+        //    "ig_claypain",
+        //    "ig_clay",
+        //    "ig_cletus",
+        //    "ig_dale",
+        //    "ig_davenorton",
+        //    "ig_denise",
+        //    "ig_devin",
+        //    "ig_dom",
+        //    "ig_dreyfuss",
+        //    "ig_drfriedlander",
+        //    "ig_fabien",
+        //    "ig_fbisuit_01",
+        //    "ig_floyd",
+        //    "ig_groom",
+        //    "ig_hao",
+        //    "ig_hunter",
+        //    "ig_janet",
+        //    "ig_jay_norris",
+        //    "ig_jewelass",
+        //    "ig_jimmyboston",
+        //    "ig_jimmydisanto",
+        //    "ig_joeminuteman",
+        //    "ig_johnnyklebitz",
+        //    "ig_josef",
+        //    "ig_josh",
+        //    "ig_kerrymcintosh",
+        //    "ig_lamardavis",
+        //    "ig_lazlow",
+        //    "ig_lestercrest",
+        //    "ig_lifeinvad_01",
+        //    "ig_lifeinvad_02",
+        //    "ig_magenta",
+        //    "ig_manuel",
+        //    "ig_marnie",
+        //    "ig_maryann",
+        //    "ig_maude",
+        //    "ig_michelle",
+        //    "ig_milton",
+        //    "ig_molly",
+        //    "ig_mrk",
+        //    "ig_mrsphillips",
+        //    "ig_mrs_thornhill",
+        //    "ig_natalia",
+        //    "ig_nervousron",
+        //    "ig_nigel",
+        //    "ig_old_man1a",
+        //    "ig_old_man2",
+        //    "ig_omega",
+        //    "ig_oneil",
+        //    "ig_orleans",
+        //    "ig_ortega",
+        //    "ig_paper",
+        //    "ig_patricia",
+        //    "ig_priest",
+        //    "ig_prolsec_02",
+        //    "ig_ramp_gang",
+        //    "ig_ramp_hic",
+        //    "ig_ramp_hipster",
+        //    "ig_ramp_mex",
+        //    "ig_roccopelosi",
+        //    "ig_russiandrunk",
+        //    "ig_screen_writer",
+        //    "ig_siemonyetarian",
+        //    "ig_solomon",
+        //    "ig_stevehains",
+        //    "ig_stretch",
+        //    "ig_talina",
+        //    "ig_tanisha",
+        //    "ig_taocheng",
+        //    "ig_taostranslator",
+        //    "ig_tenniscoach",
+        //    "ig_terry",
+        //    "ig_tomepsilon",
+        //    "ig_tonya",
+        //    "ig_tracydisanto",
+        //    "ig_trafficwarden",
+        //    "ig_tylerdix",
+        //    "ig_wade",
+        //    "ig_zimbor",
+        //    "mp_f_deadhooker",
+        //    "mp_f_misty_01",
+        //    "mp_f_stripperlite",
+        //    "mp_g_m_pros_01",
+        //    "mp_m_claude_01",
+        //    "mp_m_exarmy_01",
+        //    "mp_m_famdd_01",
+        //    "mp_m_fibsec_01",
+        //    "mp_m_marston_01",
+        //    "mp_m_niko_01",
+        //    "mp_m_shopkeep_01",
+        //    "mp_s_m_armoured_01",
+        //    "player_one",
+        //    "player_two",
+        //    "player_zero",
+        //    "s_f_m_fembarber",
+        //    "s_f_m_maid_01",
+        //    "s_f_m_shop_high",
+        //    "s_f_m_sweatshop_01",
+        //    "s_f_y_airhostess_01",
+        //    "s_f_y_bartender_01",
+        //    "s_f_y_baywatch_01",
+        //    "s_f_y_cop_01",
+        //    "s_f_y_factory_01",
+        //    "s_f_y_hooker_01",
+        //    "s_f_y_hooker_02",
+        //    "s_f_y_hooker_03",
+        //    "s_f_y_migrant_01",
+        //    "s_f_y_movprem_01",
+        //    "s_f_y_ranger_01",
+        //    "s_f_y_scrubs_01",
+        //    "s_f_y_sheriff_01",
+        //    "s_f_y_shop_low",
+        //    "s_f_y_shop_mid",
+        //    "s_f_y_stripperlite",
+        //    "s_f_y_stripper_01",
+        //    "s_f_y_stripper_02",
+        //    "s_f_y_sweatshop_01",
+        //    "s_m_m_ammucountry",
+        //    "s_m_m_armoured_01",
+        //    "s_m_m_armoured_02",
+        //    "s_m_m_autoshop_01",
+        //    "s_m_m_autoshop_02",
+        //    "s_m_m_bouncer_01",
+        //    "s_m_m_chemsec_01",
+        //    "s_m_m_ciasec_01",
+        //    "s_m_m_cntrybar_01",
+        //    "s_m_m_dockwork_01",
+        //    "s_m_m_doctor_01",
+        //    "s_m_m_fiboffice_01",
+        //    "s_m_m_fiboffice_02",
+        //    "s_m_m_gaffer_01",
+        //    "s_m_m_gardener_01",
+        //    "s_m_m_gentransport",
+        //    "s_m_m_hairdress_01",
+        //    "s_m_m_highsec_01",
+        //    "s_m_m_highsec_02",
+        //    "s_m_m_janitor",
+        //    "s_m_m_lathandy_01",
+        //    "s_m_m_lifeinvad_01",
+        //    "s_m_m_linecook",
+        //    "s_m_m_lsmetro_01",
+        //    "s_m_m_mariachi_01",
+        //    "s_m_m_marine_01",
+        //    "s_m_m_marine_02",
+        //    "s_m_m_migrant_01",
+        //    "s_m_m_movalien_01",
+        //    "s_m_m_movprem_01",
+        //    "s_m_m_movspace_01",
+        //    "s_m_m_paramedic_01",
+        //    "s_m_m_pilot_01",
+        //    "s_m_m_pilot_02",
+        //    "s_m_m_postal_01",
+        //    "s_m_m_postal_02",
+        //    "s_m_m_prisguard_01",
+        //    "s_m_m_scientist_01",
+        //    "s_m_m_security_01",
+        //    "s_m_m_snowcop_01",
+        //    "s_m_m_strperf_01",
+        //    "s_m_m_strpreach_01",
+        //    "s_m_m_strvend_01",
+        //    "s_m_m_trucker_01",
+        //    "s_m_m_ups_01",
+        //    "s_m_m_ups_02",
+        //    "s_m_o_busker_01",
+        //    "s_m_y_airworker",
+        //    "s_m_y_ammucity_01",
+        //    "s_m_y_armymech_01",
+        //    "s_m_y_autopsy_01",
+        //    "s_m_y_barman_01",
+        //    "s_m_y_baywatch_01",
+        //    "s_m_y_blackops_01",
+        //    "s_m_y_blackops_02",
+        //    "s_m_y_busboy_01",
+        //    "s_m_y_chef_01",
+        //    "s_m_y_clown_01",
+        //    "s_m_y_construct_01",
+        //    "s_m_y_construct_02",
+        //    "s_m_y_cop_01",
+        //    "s_m_y_dealer_01",
+        //    "s_m_y_devinsec_01",
+        //    "s_m_y_dockwork_01",
+        //    "s_m_y_doorman_01",
+        //    "s_m_y_dwservice_01",
+        //    "s_m_y_dwservice_02",
+        //    "s_m_y_factory_01",
+        //    "s_m_y_fireman_01",
+        //    "s_m_y_garbage",
+        //    "s_m_y_grip_01",
+        //    "s_m_y_hwaycop_01",
+        //    "s_m_y_marine_01",
+        //    "s_m_y_marine_02",
+        //    "s_m_y_marine_03",
+        //    "s_m_y_mime",
+        //    "s_m_y_pestcont_01",
+        //    "s_m_y_pilot_01",
+        //    "s_m_y_prismuscl_01",
+        //    "s_m_y_prisoner_01",
+        //    "s_m_y_ranger_01",
+        //    "s_m_y_robber_01",
+        //    "s_m_y_sheriff_01",
+        //    "s_m_y_shop_mask",
+        //    "s_m_y_strvend_01",
+        //    "s_m_y_swat_01",
+        //    "s_m_y_uscg_01",
+        //    "s_m_y_valet_01",
+        //    "s_m_y_waiter_01",
+        //    "s_m_y_winclean_01",
+        //    "s_m_y_xmech_01",
+        //    "s_m_y_xmech_02",
+        //    "u_f_m_corpse_01",
+        //    "u_f_m_miranda",
+        //    "u_f_m_promourn_01",
+        //    "u_f_o_moviestar",
+        //    "u_f_o_prolhost_01",
+        //    "u_f_y_bikerchic",
+        //    "u_f_y_comjane",
+        //    "u_f_y_corpse_01",
+        //    "u_f_y_corpse_02",
+        //    "u_f_y_hotposh_01",
+        //    "u_f_y_jewelass_01",
+        //    "u_f_y_mistress",
+        //    "u_f_y_poppymich",
+        //    "u_f_y_princess",
+        //    "u_f_y_spyactress",
+        //    "u_m_m_aldinapoli",
+        //    "u_m_m_bankman",
+        //    "u_m_m_bikehire_01",
+        //    "u_m_m_fibarchitect",
+        //    "u_m_m_filmdirector",
+        //    "u_m_m_glenstank_01",
+        //    "u_m_m_griff_01",
+        //    "u_m_m_jesus_01",
+        //    "u_m_m_jewelsec_01",
+        //    "u_m_m_jewelthief",
+        //    "u_m_m_markfost",
+        //    "u_m_m_partytarget",
+        //    "u_m_m_prolsec_01",
+        //    "u_m_m_promourn_01",
+        //    "u_m_m_rivalpap",
+        //    "u_m_m_spyactor",
+        //    "u_m_m_willyfist",
+        //    "u_m_o_finguru_01",
+        //    "u_m_o_taphillbilly",
+        //    "u_m_o_tramp_01",
+        //    "u_m_y_abner",
+        //    "u_m_y_antonb",
+        //    "u_m_y_babyd",
+        //    "u_m_y_baygor",
+        //    "u_m_y_burgerdrug_01",
+        //    "u_m_y_chip",
+        //    "u_m_y_cyclist_01",
+        //    "u_m_y_fibmugger_01",
+        //    "u_m_y_guido_01",
+        //    "u_m_y_gunvend_01",
+        //    "u_m_y_hippie_01",
+        //    "u_m_y_imporage",
+        //    "u_m_y_justin",
+        //    "u_m_y_mani",
+        //    "u_m_y_militarybum",
+        //    "u_m_y_paparazzi",
+        //    "u_m_y_party_01",
+        //    "u_m_y_pogo_01",
+        //    "u_m_y_prisoner_01",
+        //    "u_m_y_proldriver_01",
+        //    "u_m_y_rsranger_01",
+        //    "u_m_y_sbike",
+        //    "u_m_y_staggrm_01",
+        //    "u_m_y_tattoo_01",
+        //    "u_m_y_zombie_01"
+        //    };
 
         #region Model Names
-        private List<string> modelNames = new List<string>()
+        private Dictionary<string, string> mainModels = new Dictionary<string, string>()
         {
-            "mp_f_freemode_01",
-            "mp_m_freemode_01",
-            "a_f_m_beach_01",
-            "a_f_m_bevhills_01",
-            "a_f_m_bevhills_02",
-            "a_f_m_bodybuild_01",
-            "a_f_m_business_02",
-            "a_f_m_downtown_01",
-            "a_f_m_eastsa_01",
-            "a_f_m_eastsa_02",
-            "a_f_m_fatbla_01",
-            "a_f_m_fatcult_01",
-            "a_f_m_fatwhite_01",
-            "a_f_m_ktown_01",
-            "a_f_m_ktown_02",
-            "a_f_m_prolhost_01",
-            "a_f_m_salton_01",
-            "a_f_m_skidrow_01",
-            "a_f_m_soucentmc_01",
-            "a_f_m_soucent_01",
-            "a_f_m_soucent_02",
-            "a_f_m_tourist_01",
-            "a_f_m_trampbeac_01",
-            "a_f_m_tramp_01",
-            "a_f_o_genstreet_01",
-            "a_f_o_indian_01",
-            "a_f_o_ktown_01",
-            "a_f_o_salton_01",
-            "a_f_o_soucent_01",
-            "a_f_o_soucent_02",
-            "a_f_y_beach_01",
-            "a_f_y_bevhills_01",
-            "a_f_y_bevhills_02",
-            "a_f_y_bevhills_03",
-            "a_f_y_bevhills_04",
-            "a_f_y_business_01",
-            "a_f_y_business_02",
-            "a_f_y_business_03",
-            "a_f_y_business_04",
-            "a_f_y_eastsa_01",
-            "a_f_y_eastsa_02",
-            "a_f_y_eastsa_03",
-            "a_f_y_epsilon_01",
-            "a_f_y_fitness_01",
-            "a_f_y_fitness_02",
-            "a_f_y_genhot_01",
-            "a_f_y_golfer_01",
-            "a_f_y_hiker_01",
-            "a_f_y_hippie_01",
-            "a_f_y_hipster_01",
-            "a_f_y_hipster_02",
-            "a_f_y_hipster_03",
-            "a_f_y_hipster_04",
-            "a_f_y_indian_01",
-            "a_f_y_juggalo_01",
-            "a_f_y_runner_01",
-            "a_f_y_rurmeth_01",
-            "a_f_y_scdressy_01",
-            "a_f_y_skater_01",
-            "a_f_y_soucent_01",
-            "a_f_y_soucent_02",
-            "a_f_y_soucent_03",
-            "a_f_y_tennis_01",
-            "a_f_y_topless_01",
-            "a_f_y_tourist_01",
-            "a_f_y_tourist_02",
-            "a_f_y_vinewood_01",
-            "a_f_y_vinewood_02",
-            "a_f_y_vinewood_03",
-            "a_f_y_vinewood_04",
-            "a_f_y_yoga_01",
-            "a_m_m_acult_01",
-            "a_m_m_afriamer_01",
-            "a_m_m_beach_01",
-            "a_m_m_beach_02",
-            "a_m_m_bevhills_01",
-            "a_m_m_bevhills_02",
-            "a_m_m_business_01",
-            "a_m_m_eastsa_01",
-            "a_m_m_eastsa_02",
-            "a_m_m_farmer_01",
-            "a_m_m_fatlatin_01",
-            "a_m_m_genfat_01",
-            "a_m_m_genfat_02",
-            "a_m_m_golfer_01",
-            "a_m_m_hasjew_01",
-            "a_m_m_hillbilly_01",
-            "a_m_m_hillbilly_02",
-            "a_m_m_indian_01",
-            "a_m_m_ktown_01",
-            "a_m_m_malibu_01",
-            "a_m_m_mexcntry_01",
-            "a_m_m_mexlabor_01",
-            "a_m_m_og_boss_01",
-            "a_m_m_paparazzi_01",
-            "a_m_m_polynesian_01",
-            "a_m_m_prolhost_01",
-            "a_m_m_rurmeth_01",
-            "a_m_m_salton_01",
-            "a_m_m_salton_02",
-            "a_m_m_salton_03",
-            "a_m_m_salton_04",
-            "a_m_m_skater_01",
-            "a_m_m_skidrow_01",
-            "a_m_m_socenlat_01",
-            "a_m_m_soucent_01",
-            "a_m_m_soucent_02",
-            "a_m_m_soucent_03",
-            "a_m_m_soucent_04",
-            "a_m_m_stlat_02",
-            "a_m_m_tennis_01",
-            "a_m_m_tourist_01",
-            "a_m_m_trampbeac_01",
-            "a_m_m_tramp_01",
-            "a_m_m_tranvest_01",
-            "a_m_m_tranvest_02",
-            "a_m_o_acult_01",
-            "a_m_o_acult_02",
-            "a_m_o_beach_01",
-            "a_m_o_genstreet_01",
-            "a_m_o_ktown_01",
-            "a_m_o_salton_01",
-            "a_m_o_soucent_01",
-            "a_m_o_soucent_02",
-            "a_m_o_soucent_03",
-            "a_m_o_tramp_01",
-            "a_m_y_acult_01",
-            "a_m_y_acult_02",
-            "a_m_y_beachvesp_01",
-            "a_m_y_beachvesp_02",
-            "a_m_y_beach_01",
-            "a_m_y_beach_02",
-            "a_m_y_beach_03",
-            "a_m_y_bevhills_01",
-            "a_m_y_bevhills_02",
-            "a_m_y_breakdance_01",
-            "a_m_y_busicas_01",
-            "a_m_y_business_01",
-            "a_m_y_business_02",
-            "a_m_y_business_03",
-            "a_m_y_cyclist_01",
-            "a_m_y_dhill_01",
-            "a_m_y_downtown_01",
-            "a_m_y_eastsa_01",
-            "a_m_y_eastsa_02",
-            "a_m_y_epsilon_01",
-            "a_m_y_epsilon_02",
-            "a_m_y_gay_01",
-            "a_m_y_gay_02",
-            "a_m_y_genstreet_01",
-            "a_m_y_genstreet_02",
-            "a_m_y_golfer_01",
-            "a_m_y_hasjew_01",
-            "a_m_y_hiker_01",
-            "a_m_y_hippy_01",
-            "a_m_y_hipster_01",
-            "a_m_y_hipster_02",
-            "a_m_y_hipster_03",
-            "a_m_y_indian_01",
-            "a_m_y_jetski_01",
-            "a_m_y_juggalo_01",
-            "a_m_y_ktown_01",
-            "a_m_y_ktown_02",
-            "a_m_y_latino_01",
-            "a_m_y_methhead_01",
-            "a_m_y_mexthug_01",
-            "a_m_y_motox_01",
-            "a_m_y_motox_02",
-            "a_m_y_musclbeac_01",
-            "a_m_y_musclbeac_02",
-            "a_m_y_polynesian_01",
-            "a_m_y_roadcyc_01",
-            "a_m_y_runner_01",
-            "a_m_y_runner_02",
-            "a_m_y_salton_01",
-            "a_m_y_skater_01",
-            "a_m_y_skater_02",
-            "a_m_y_soucent_01",
-            "a_m_y_soucent_02",
-            "a_m_y_soucent_03",
-            "a_m_y_soucent_04",
-            "a_m_y_stbla_01",
-            "a_m_y_stbla_02",
-            "a_m_y_stlat_01",
-            "a_m_y_stwhi_01",
-            "a_m_y_stwhi_02",
-            "a_m_y_sunbathe_01",
-            "a_m_y_surfer_01",
-            "a_m_y_vindouche_01",
-            "a_m_y_vinewood_01",
-            "a_m_y_vinewood_02",
-            "a_m_y_vinewood_03",
-            "a_m_y_vinewood_04",
-            "a_m_y_yoga_01",
-            "csb_abigail",
-            "csb_anita",
-            "csb_anton",
-            "csb_ballasog",
-            "csb_bride",
-            "csb_burgerdrug",
-            "csb_car3guy1",
-            "csb_car3guy2",
-            "csb_chef",
-            "csb_chin_goon",
-            "csb_cletus",
-            "csb_cop",
-            "csb_customer",
-            "csb_denise_friend",
-            "csb_fos_rep",
-            "csb_groom",
-            "csb_grove_str_dlr",
-            "csb_g",
-            "csb_hao",
-            "csb_hugh",
-            "csb_imran",
-            "csb_janitor",
-            "csb_maude",
-            "csb_mweather",
-            "csb_ortega",
-            "csb_oscar",
-            "csb_porndudes",
-            "csb_prologuedriver",
-            "csb_prolsec",
-            "csb_ramp_gang",
-            "csb_ramp_hic",
-            "csb_ramp_hipster",
-            "csb_ramp_marine",
-            "csb_ramp_mex",
-            "csb_reporter",
-            "csb_roccopelosi",
-            "csb_screen_writer",
-            "csb_stripper_01",
-            "csb_stripper_02",
-            "csb_tonya",
-            "csb_trafficwarden",
-            "g_f_y_ballas_01",
-            "g_f_y_families_01",
-            "g_f_y_lost_01",
-            "g_f_y_vagos_01",
-            "g_m_m_armboss_01",
-            "g_m_m_armgoon_01",
-            "g_m_m_armlieut_01",
-            "g_m_m_chemwork_01",
-            "g_m_m_chiboss_01",
-            "g_m_m_chicold_01",
-            "g_m_m_chigoon_01",
-            "g_m_m_chigoon_02",
-            "g_m_m_korboss_01",
-            "g_m_m_mexboss_01",
-            "g_m_m_mexboss_02",
-            "g_m_y_armgoon_02",
-            "g_m_y_azteca_01",
-            "g_m_y_ballaeast_01",
-            "g_m_y_ballaorig_01",
-            "g_m_y_ballasout_01",
-            "g_m_y_famca_01",
-            "g_m_y_famdnf_01",
-            "g_m_y_famfor_01",
-            "g_m_y_korean_01",
-            "g_m_y_korean_02",
-            "g_m_y_korlieut_01",
-            "g_m_y_lost_01",
-            "g_m_y_lost_02",
-            "g_m_y_lost_03",
-            "g_m_y_mexgang_01",
-            "g_m_y_mexgoon_01",
-            "g_m_y_mexgoon_02",
-            "g_m_y_mexgoon_03",
-            "g_m_y_pologoon_01",
-            "g_m_y_pologoon_02",
-            "g_m_y_salvaboss_01",
-            "g_m_y_salvagoon_01",
-            "g_m_y_salvagoon_02",
-            "g_m_y_salvagoon_03",
-            "g_m_y_strpunk_01",
-            "g_m_y_strpunk_02",
-            "hc_driver",
-            "hc_gunman",
-            "hc_hacker",
-            "ig_abigail",
-            "ig_amandatownley",
-            "ig_andreas",
-            "ig_ashley",
-            "ig_ballasog",
-            "ig_bankman",
-            "ig_barry",
-            "ig_bestmen",
-            "ig_beverly",
-            "ig_brad",
-            "ig_bride",
-            "ig_car3guy1",
-            "ig_car3guy2",
-            "ig_casey",
-            "ig_chef",
-            "ig_chengsr",
-            "ig_chrisformage",
-            "ig_claypain",
-            "ig_clay",
-            "ig_cletus",
-            "ig_dale",
-            "ig_davenorton",
-            "ig_denise",
-            "ig_devin",
-            "ig_dom",
-            "ig_dreyfuss",
-            "ig_drfriedlander",
-            "ig_fabien",
-            "ig_fbisuit_01",
-            "ig_floyd",
-            "ig_groom",
-            "ig_hao",
-            "ig_hunter",
-            "ig_janet",
-            "ig_jay_norris",
-            "ig_jewelass",
-            "ig_jimmyboston",
-            "ig_jimmydisanto",
-            "ig_joeminuteman",
-            "ig_johnnyklebitz",
-            "ig_josef",
-            "ig_josh",
-            "ig_kerrymcintosh",
-            "ig_lamardavis",
-            "ig_lazlow",
-            "ig_lestercrest",
-            "ig_lifeinvad_01",
-            "ig_lifeinvad_02",
-            "ig_magenta",
-            "ig_manuel",
-            "ig_marnie",
-            "ig_maryann",
-            "ig_maude",
-            "ig_michelle",
-            "ig_milton",
-            "ig_molly",
-            "ig_mrk",
-            "ig_mrsphillips",
-            "ig_mrs_thornhill",
-            "ig_natalia",
-            "ig_nervousron",
-            "ig_nigel",
-            "ig_old_man1a",
-            "ig_old_man2",
-            "ig_omega",
-            "ig_oneil",
-            "ig_orleans",
-            "ig_ortega",
-            "ig_paper",
-            "ig_patricia",
-            "ig_priest",
-            "ig_prolsec_02",
-            "ig_ramp_gang",
-            "ig_ramp_hic",
-            "ig_ramp_hipster",
-            "ig_ramp_mex",
-            "ig_roccopelosi",
-            "ig_russiandrunk",
-            "ig_screen_writer",
-            "ig_siemonyetarian",
-            "ig_solomon",
-            "ig_stevehains",
-            "ig_stretch",
-            "ig_talina",
-            "ig_tanisha",
-            "ig_taocheng",
-            "ig_taostranslator",
-            "ig_tenniscoach",
-            "ig_terry",
-            "ig_tomepsilon",
-            "ig_tonya",
-            "ig_tracydisanto",
-            "ig_trafficwarden",
-            "ig_tylerdix",
-            "ig_wade",
-            "ig_zimbor",
-            "mp_f_deadhooker",
-            "mp_f_misty_01",
-            "mp_f_stripperlite",
-            "mp_g_m_pros_01",
-            "mp_m_claude_01",
-            "mp_m_exarmy_01",
-            "mp_m_famdd_01",
-            "mp_m_fibsec_01",
-            "mp_m_marston_01",
-            "mp_m_niko_01",
-            "mp_m_shopkeep_01",
-            "mp_s_m_armoured_01",
-            "player_one",
-            "player_two",
-            "player_zero",
-            "s_f_m_fembarber",
-            "s_f_m_maid_01",
-            "s_f_m_shop_high",
-            "s_f_m_sweatshop_01",
-            "s_f_y_airhostess_01",
-            "s_f_y_bartender_01",
-            "s_f_y_baywatch_01",
-            "s_f_y_cop_01",
-            "s_f_y_factory_01",
-            "s_f_y_hooker_01",
-            "s_f_y_hooker_02",
-            "s_f_y_hooker_03",
-            "s_f_y_migrant_01",
-            "s_f_y_movprem_01",
-            "s_f_y_ranger_01",
-            "s_f_y_scrubs_01",
-            "s_f_y_sheriff_01",
-            "s_f_y_shop_low",
-            "s_f_y_shop_mid",
-            "s_f_y_stripperlite",
-            "s_f_y_stripper_01",
-            "s_f_y_stripper_02",
-            "s_f_y_sweatshop_01",
-            "s_m_m_ammucountry",
-            "s_m_m_armoured_01",
-            "s_m_m_armoured_02",
-            "s_m_m_autoshop_01",
-            "s_m_m_autoshop_02",
-            "s_m_m_bouncer_01",
-            "s_m_m_chemsec_01",
-            "s_m_m_ciasec_01",
-            "s_m_m_cntrybar_01",
-            "s_m_m_dockwork_01",
-            "s_m_m_doctor_01",
-            "s_m_m_fiboffice_01",
-            "s_m_m_fiboffice_02",
-            "s_m_m_gaffer_01",
-            "s_m_m_gardener_01",
-            "s_m_m_gentransport",
-            "s_m_m_hairdress_01",
-            "s_m_m_highsec_01",
-            "s_m_m_highsec_02",
-            "s_m_m_janitor",
-            "s_m_m_lathandy_01",
-            "s_m_m_lifeinvad_01",
-            "s_m_m_linecook",
-            "s_m_m_lsmetro_01",
-            "s_m_m_mariachi_01",
-            "s_m_m_marine_01",
-            "s_m_m_marine_02",
-            "s_m_m_migrant_01",
-            "s_m_m_movalien_01",
-            "s_m_m_movprem_01",
-            "s_m_m_movspace_01",
-            "s_m_m_paramedic_01",
-            "s_m_m_pilot_01",
-            "s_m_m_pilot_02",
-            "s_m_m_postal_01",
-            "s_m_m_postal_02",
-            "s_m_m_prisguard_01",
-            "s_m_m_scientist_01",
-            "s_m_m_security_01",
-            "s_m_m_snowcop_01",
-            "s_m_m_strperf_01",
-            "s_m_m_strpreach_01",
-            "s_m_m_strvend_01",
-            "s_m_m_trucker_01",
-            "s_m_m_ups_01",
-            "s_m_m_ups_02",
-            "s_m_o_busker_01",
-            "s_m_y_airworker",
-            "s_m_y_ammucity_01",
-            "s_m_y_armymech_01",
-            "s_m_y_autopsy_01",
-            "s_m_y_barman_01",
-            "s_m_y_baywatch_01",
-            "s_m_y_blackops_01",
-            "s_m_y_blackops_02",
-            "s_m_y_busboy_01",
-            "s_m_y_chef_01",
-            "s_m_y_clown_01",
-            "s_m_y_construct_01",
-            "s_m_y_construct_02",
-            "s_m_y_cop_01",
-            "s_m_y_dealer_01",
-            "s_m_y_devinsec_01",
-            "s_m_y_dockwork_01",
-            "s_m_y_doorman_01",
-            "s_m_y_dwservice_01",
-            "s_m_y_dwservice_02",
-            "s_m_y_factory_01",
-            "s_m_y_fireman_01",
-            "s_m_y_garbage",
-            "s_m_y_grip_01",
-            "s_m_y_hwaycop_01",
-            "s_m_y_marine_01",
-            "s_m_y_marine_02",
-            "s_m_y_marine_03",
-            "s_m_y_mime",
-            "s_m_y_pestcont_01",
-            "s_m_y_pilot_01",
-            "s_m_y_prismuscl_01",
-            "s_m_y_prisoner_01",
-            "s_m_y_ranger_01",
-            "s_m_y_robber_01",
-            "s_m_y_sheriff_01",
-            "s_m_y_shop_mask",
-            "s_m_y_strvend_01",
-            "s_m_y_swat_01",
-            "s_m_y_uscg_01",
-            "s_m_y_valet_01",
-            "s_m_y_waiter_01",
-            "s_m_y_winclean_01",
-            "s_m_y_xmech_01",
-            "s_m_y_xmech_02",
-            "u_f_m_corpse_01",
-            "u_f_m_miranda",
-            "u_f_m_promourn_01",
-            "u_f_o_moviestar",
-            "u_f_o_prolhost_01",
-            "u_f_y_bikerchic",
-            "u_f_y_comjane",
-            "u_f_y_corpse_01",
-            "u_f_y_corpse_02",
-            "u_f_y_hotposh_01",
-            "u_f_y_jewelass_01",
-            "u_f_y_mistress",
-            "u_f_y_poppymich",
-            "u_f_y_princess",
-            "u_f_y_spyactress",
-            "u_m_m_aldinapoli",
-            "u_m_m_bankman",
-            "u_m_m_bikehire_01",
-            "u_m_m_fibarchitect",
-            "u_m_m_filmdirector",
-            "u_m_m_glenstank_01",
-            "u_m_m_griff_01",
-            "u_m_m_jesus_01",
-            "u_m_m_jewelsec_01",
-            "u_m_m_jewelthief",
-            "u_m_m_markfost",
-            "u_m_m_partytarget",
-            "u_m_m_prolsec_01",
-            "u_m_m_promourn_01",
-            "u_m_m_rivalpap",
-            "u_m_m_spyactor",
-            "u_m_m_willyfist",
-            "u_m_o_finguru_01",
-            "u_m_o_taphillbilly",
-            "u_m_o_tramp_01",
-            "u_m_y_abner",
-            "u_m_y_antonb",
-            "u_m_y_babyd",
-            "u_m_y_baygor",
-            "u_m_y_burgerdrug_01",
-            "u_m_y_chip",
-            "u_m_y_cyclist_01",
-            "u_m_y_fibmugger_01",
-            "u_m_y_guido_01",
-            "u_m_y_gunvend_01",
-            "u_m_y_hippie_01",
-            "u_m_y_imporage",
-            "u_m_y_justin",
-            "u_m_y_mani",
-            "u_m_y_militarybum",
-            "u_m_y_paparazzi",
-            "u_m_y_party_01",
-            "u_m_y_pogo_01",
-            "u_m_y_prisoner_01",
-            "u_m_y_proldriver_01",
-            "u_m_y_rsranger_01",
-            "u_m_y_sbike",
-            "u_m_y_staggrm_01",
-            "u_m_y_tattoo_01",
-            "u_m_y_zombie_01"
+            ["player_one"] = "Franklin",
+            ["player_two"] = "Trevor",
+            ["player_zero"] = "Michael",
+            ["mp_f_freemode_01"] = "FreemodeFemale01",
+            ["mp_m_freemode_01"] = "FreemodeMale01"
         };
-        #endregion
-
-        #region tattoos
-        private enum PedGender { MALE, FEMALE, UNISEX };
-
-        private struct Tattoo
+        private Dictionary<string, string> animalModels = new Dictionary<string, string>()
         {
-            public string collection;
-            public string name;
-            public string displayName;
-            public PedGender gender;
-            public string zone;
-        }
-
-        private readonly List<Tattoo> tattoosList = new List<Tattoo>()
+            ["a_c_boar"] = "Boar",
+            ["a_c_cat_01"] = "Cat",
+            ["a_c_chickenhawk"] = "ChickenHawk",
+            ["a_c_chimp"] = "Chimp",
+            ["a_c_chop"] = "Chop",
+            ["a_c_cormorant"] = "Cormorant",
+            ["a_c_cow"] = "Cow",
+            ["a_c_coyote"] = "Coyote",
+            ["a_c_crow"] = "Crow",
+            ["a_c_deer"] = "Deer",
+            ["a_c_dolphin"] = "Dolphin",
+            ["a_c_fish"] = "Fish",
+            ["a_c_hen"] = "Hen",
+            ["a_c_humpback"] = "Humpback",
+            ["a_c_husky"] = "Husky",
+            ["a_c_killerwhale"] = "KillerWhale",
+            ["a_c_mtlion"] = "MountainLion",
+            ["a_c_pig"] = "Pig",
+            ["a_c_pigeon"] = "Pigeon",
+            ["a_c_poodle"] = "Poodle",
+            ["a_c_pug"] = "Pug",
+            ["a_c_rabbit_01"] = "Rabbit",
+            ["a_c_rat"] = "Rat",
+            ["a_c_retriever"] = "Retriever",
+            ["a_c_rhesus"] = "Rhesus",
+            ["a_c_rottweiler"] = "Rottweiler",
+            ["a_c_seagull"] = "Seagull",
+            ["a_c_sharkhammer"] = "HammerShark",
+            ["a_c_sharktiger"] = "TigerShark",
+            ["a_c_shepherd"] = "Shepherd",
+            ["a_c_westy"] = "Westy"
+        };
+        private Dictionary<string, string> maleModels = new Dictionary<string, string>()
         {
-            #region mpChristmas2_overlays
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_000", displayName = "TAT_X2_000", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_001", displayName = "TAT_X2_001", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_002", displayName = "TAT_X2_002", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_003", displayName = "TAT_X2_003", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_004", displayName = "TAT_X2_004", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_005", displayName = "TAT_X2_005", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_006", displayName = "TAT_X2_006", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_007", displayName = "TAT_X2_007", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_008", displayName = "TAT_X2_008", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_009", displayName = "TAT_X2_009", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_010", displayName = "TAT_X2_010", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_011", displayName = "TAT_X2_011", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_012", displayName = "TAT_X2_012", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_013", displayName = "TAT_X2_013", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_014", displayName = "TAT_X2_014", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_015", displayName = "TAT_X2_015", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_016", displayName = "TAT_X2_016", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_017", displayName = "TAT_X2_017", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_018", displayName = "TAT_X2_018", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_019", displayName = "TAT_X2_019", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_020", displayName = "TAT_X2_020", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_021", displayName = "TAT_X2_021", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_022", displayName = "TAT_X2_022", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_023", displayName = "TAT_X2_023", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_024", displayName = "TAT_X2_024", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_025", displayName = "TAT_X2_025", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_026", displayName = "TAT_X2_026", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_027", displayName = "TAT_X2_027", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_028", displayName = "TAT_X2_028", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_M_Tat_029", displayName = "TAT_X2_029", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_000", displayName = "TAT_X2_000", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_001", displayName = "TAT_X2_001", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_002", displayName = "TAT_X2_002", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_003", displayName = "TAT_X2_003", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_004", displayName = "TAT_X2_004", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_005", displayName = "TAT_X2_005", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_006", displayName = "TAT_X2_006", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_007", displayName = "TAT_X2_007", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_008", displayName = "TAT_X2_008", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_009", displayName = "TAT_X2_009", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_010", displayName = "TAT_X2_010", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_011", displayName = "TAT_X2_011", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_012", displayName = "TAT_X2_012", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_013", displayName = "TAT_X2_013", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_014", displayName = "TAT_X2_014", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_015", displayName = "TAT_X2_015", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_016", displayName = "TAT_X2_016", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_017", displayName = "TAT_X2_017", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_018", displayName = "TAT_X2_018", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_019", displayName = "TAT_X2_019", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_020", displayName = "TAT_X2_020", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_021", displayName = "TAT_X2_021", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_022", displayName = "TAT_X2_022", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_023", displayName = "TAT_X2_023", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_024", displayName = "TAT_X2_024", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_025", displayName = "TAT_X2_025", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_026", displayName = "TAT_X2_026", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_027", displayName = "TAT_X2_027", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_028", displayName = "TAT_X2_028", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2_overlays", name = "MP_Xmas2_F_Tat_029", displayName = "TAT_X2_029", gender = PedGender.FEMALE, zone = "HEAD"},
-            #endregion
-
-            #region mpLowrider_overlays
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_002_M", displayName = "TAT_S1_002", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_004_M", displayName = "TAT_S1_004", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_005_M", displayName = "TAT_S1_005", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_007_M", displayName = "TAT_S1_007", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_009_M", displayName = "TAT_S1_009", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_010_M", displayName = "TAT_S1_010", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_013_M", displayName = "TAT_S1_013", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_014_M", displayName = "TAT_S1_014", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_015_M", displayName = "TAT_S1_015", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_017_M", displayName = "TAT_S1_017", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_020_M", displayName = "TAT_S1_020", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_021_M", displayName = "TAT_S1_021", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_023_M", displayName = "TAT_S1_023", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_026_M", displayName = "TAT_S1_026", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_027_M", displayName = "TAT_S1_027", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_033_M", displayName = "TAT_S1_033", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_001_F", displayName = "TAT_S1_001", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_002_F", displayName = "TAT_S1_002", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_004_F", displayName = "TAT_S1_004", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_005_F", displayName = "TAT_S1_005", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_007_F", displayName = "TAT_S1_007", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_009_F", displayName = "TAT_S1_009", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_010_F", displayName = "TAT_S1_010", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_013_F", displayName = "TAT_S1_013", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_014_F", displayName = "TAT_S1_014", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_015_F", displayName = "TAT_S1_015", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_017_F", displayName = "TAT_S1_017", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_020_F", displayName = "TAT_S1_020", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_021_F", displayName = "TAT_S1_021", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_023_F", displayName = "TAT_S1_023", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_026_F", displayName = "TAT_S1_026", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_027_F", displayName = "TAT_S1_027", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider_overlays", name = "MP_LR_Tat_033_F", displayName = "TAT_S1_033", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            #endregion
-
-            #region mpLuxe_overlays
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_000_M", displayName = "TAT_LX_000", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_001_M", displayName = "TAT_LX_001", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_003_M", displayName = "TAT_LX_003", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_004_M", displayName = "TAT_LX_004", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_006_M", displayName = "TAT_LX_006", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_007_M", displayName = "TAT_LX_007", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_008_M", displayName = "TAT_LX_008", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_009_M", displayName = "TAT_LX_009", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_013_M", displayName = "TAT_LX_013", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_014_M", displayName = "TAT_LX_014", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_015_M", displayName = "TAT_LX_015", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_019_M", displayName = "TAT_LX_019", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_020_M", displayName = "TAT_LX_020", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_021_M", displayName = "TAT_LX_021", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_024_M", displayName = "TAT_LX_024", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_000_F", displayName = "TAT_LX_000", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_001_F", displayName = "TAT_LX_001", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_003_F", displayName = "TAT_LX_003", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_004_F", displayName = "TAT_LX_004", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_006_F", displayName = "TAT_LX_006", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_007_F", displayName = "TAT_LX_007", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_008_F", displayName = "TAT_LX_008", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_009_F", displayName = "TAT_LX_009", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_013_F", displayName = "TAT_LX_013", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_014_F", displayName = "TAT_LX_014", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_015_F", displayName = "TAT_LX_015", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_019_F", displayName = "TAT_LX_019", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_020_F", displayName = "TAT_LX_020", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_021_F", displayName = "TAT_LX_021", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe_overlays", name = "MP_Luxe_Tat_024_F", displayName = "TAT_LX_024", gender = PedGender.FEMALE, zone = "TORSO"},
-            #endregion
-
-            #region mpAirRaces_overlays
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_000_M", displayName = "TAT_AR_000", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_001_M", displayName = "TAT_AR_001", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_002_M", displayName = "TAT_AR_002", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_003_M", displayName = "TAT_AR_003", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_004_M", displayName = "TAT_AR_004", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_005_M", displayName = "TAT_AR_005", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_006_M", displayName = "TAT_AR_006", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_007_M", displayName = "TAT_AR_007", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_000_F", displayName = "TAT_AR_000", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_001_F", displayName = "TAT_AR_001", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_002_F", displayName = "TAT_AR_002", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_003_F", displayName = "TAT_AR_003", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_004_F", displayName = "TAT_AR_004", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_005_F", displayName = "TAT_AR_005", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_006_F", displayName = "TAT_AR_006", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpAirRaces_overlays", name = "MP_AirRaces_Tattoo_007_F", displayName = "TAT_AR_007", gender = PedGender.FEMALE, zone = "TORSO"},
-            #endregion
-
-            #region mpBiker_overlays
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_000_F", displayName = "TAT_BI_000", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_000_M", displayName = "TAT_BI_000", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_001_F", displayName = "TAT_BI_001", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_001_M", displayName = "TAT_BI_001", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_002_F", displayName = "TAT_BI_002", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_002_M", displayName = "TAT_BI_002", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_003_F", displayName = "TAT_BI_003", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_003_M", displayName = "TAT_BI_003", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_004_F", displayName = "TAT_BI_004", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_004_M", displayName = "TAT_BI_004", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_005_F", displayName = "TAT_BI_005", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_005_M", displayName = "TAT_BI_005", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_006_F", displayName = "TAT_BI_006", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_006_M", displayName = "TAT_BI_006", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_007_F", displayName = "TAT_BI_007", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_007_M", displayName = "TAT_BI_007", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_008_F", displayName = "TAT_BI_008", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_008_M", displayName = "TAT_BI_008", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_009_F", displayName = "TAT_BI_009", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_009_M", displayName = "TAT_BI_009", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_010_F", displayName = "TAT_BI_010", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_010_M", displayName = "TAT_BI_010", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_011_F", displayName = "TAT_BI_011", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_011_M", displayName = "TAT_BI_011", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_012_F", displayName = "TAT_BI_012", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_012_M", displayName = "TAT_BI_012", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_013_F", displayName = "TAT_BI_013", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_013_M", displayName = "TAT_BI_013", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_014_F", displayName = "TAT_BI_014", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_014_M", displayName = "TAT_BI_014", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_015_F", displayName = "TAT_BI_015", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_015_M", displayName = "TAT_BI_015", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_016_F", displayName = "TAT_BI_016", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_016_M", displayName = "TAT_BI_016", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_017_F", displayName = "TAT_BI_017", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_017_M", displayName = "TAT_BI_017", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_018_F", displayName = "TAT_BI_018", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_018_M", displayName = "TAT_BI_018", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_019_F", displayName = "TAT_BI_019", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_019_M", displayName = "TAT_BI_019", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_020_F", displayName = "TAT_BI_020", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_020_M", displayName = "TAT_BI_020", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_021_F", displayName = "TAT_BI_021", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_021_M", displayName = "TAT_BI_021", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_022_F", displayName = "TAT_BI_022", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_022_M", displayName = "TAT_BI_022", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_023_F", displayName = "TAT_BI_023", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_023_M", displayName = "TAT_BI_023", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_024_F", displayName = "TAT_BI_024", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_024_M", displayName = "TAT_BI_024", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_025_F", displayName = "TAT_BI_025", gender = PedGender.FEMALE, zone = "LEFT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_025_M", displayName = "TAT_BI_025", gender = PedGender.MALE, zone = "LEFT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_026_F", displayName = "TAT_BI_026", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_026_M", displayName = "TAT_BI_026", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_027_F", displayName = "TAT_BI_027", gender = PedGender.FEMALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_027_M", displayName = "TAT_BI_027", gender = PedGender.MALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_028_F", displayName = "TAT_BI_028", gender = PedGender.FEMALE, zone = "RIGHT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_028_M", displayName = "TAT_BI_028", gender = PedGender.MALE, zone = "RIGHT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_029_F", displayName = "TAT_BI_029", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_029_M", displayName = "TAT_BI_029", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_030_F", displayName = "TAT_BI_030", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_030_M", displayName = "TAT_BI_030", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_031_F", displayName = "TAT_BI_031", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_031_M", displayName = "TAT_BI_031", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_032_F", displayName = "TAT_BI_032", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_032_M", displayName = "TAT_BI_032", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_033_F", displayName = "TAT_BI_033", gender = PedGender.FEMALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_033_M", displayName = "TAT_BI_033", gender = PedGender.MALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_034_F", displayName = "TAT_BI_034", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_034_M", displayName = "TAT_BI_034", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_035_F", displayName = "TAT_BI_035", gender = PedGender.FEMALE, zone = "LEFT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_035_M", displayName = "TAT_BI_035", gender = PedGender.MALE, zone = "LEFT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_036_F", displayName = "TAT_BI_036", gender = PedGender.FEMALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_036_M", displayName = "TAT_BI_036", gender = PedGender.MALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_037_F", displayName = "TAT_BI_037", gender = PedGender.FEMALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_037_M", displayName = "TAT_BI_037", gender = PedGender.MALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_038_F", displayName = "TAT_BI_038", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_038_M", displayName = "TAT_BI_038", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_039_F", displayName = "TAT_BI_039", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_039_M", displayName = "TAT_BI_039", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_040_F", displayName = "TAT_BI_040", gender = PedGender.FEMALE, zone = "RIGHT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_040_M", displayName = "TAT_BI_040", gender = PedGender.MALE, zone = "RIGHT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_041_F", displayName = "TAT_BI_041", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_041_M", displayName = "TAT_BI_041", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_042_F", displayName = "TAT_BI_042", gender = PedGender.FEMALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_042_M", displayName = "TAT_BI_042", gender = PedGender.MALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_043_F", displayName = "TAT_BI_043", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_043_M", displayName = "TAT_BI_043", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_044_F", displayName = "TAT_BI_044", gender = PedGender.FEMALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_044_M", displayName = "TAT_BI_044", gender = PedGender.MALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_045_F", displayName = "TAT_BI_045", gender = PedGender.FEMALE, zone = "LEFT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_045_M", displayName = "TAT_BI_045", gender = PedGender.MALE, zone = "LEFT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_046_F", displayName = "TAT_BI_046", gender = PedGender.FEMALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_046_M", displayName = "TAT_BI_046", gender = PedGender.MALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_047_F", displayName = "TAT_BI_047", gender = PedGender.FEMALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_047_M", displayName = "TAT_BI_047", gender = PedGender.MALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_048_F", displayName = "TAT_BI_048", gender = PedGender.FEMALE, zone = "RIGHT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_048_M", displayName = "TAT_BI_048", gender = PedGender.MALE, zone = "RIGHT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_049_F", displayName = "TAT_BI_049", gender = PedGender.FEMALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_049_M", displayName = "TAT_BI_049", gender = PedGender.MALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_050_F", displayName = "TAT_BI_050", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_050_M", displayName = "TAT_BI_050", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_051_F", displayName = "TAT_BI_051", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_051_M", displayName = "TAT_BI_051", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_052_F", displayName = "TAT_BI_052", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_052_M", displayName = "TAT_BI_052", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_053_F", displayName = "TAT_BI_053", gender = PedGender.FEMALE, zone = "LEFT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_053_M", displayName = "TAT_BI_053", gender = PedGender.MALE, zone = "LEFT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_054_F", displayName = "TAT_BI_054", gender = PedGender.FEMALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_054_M", displayName = "TAT_BI_054", gender = PedGender.MALE, zone = "RIGHT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_055_F", displayName = "TAT_BI_055", gender = PedGender.FEMALE, zone = "LEFT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_055_M", displayName = "TAT_BI_055", gender = PedGender.MALE, zone = "LEFT ARM"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_056_F", displayName = "TAT_BI_056", gender = PedGender.FEMALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_056_M", displayName = "TAT_BI_056", gender = PedGender.MALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_057_F", displayName = "TAT_BI_057", gender = PedGender.FEMALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_057_M", displayName = "TAT_BI_057", gender = PedGender.MALE, zone = "LEFT LEG"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_058_F", displayName = "TAT_BI_058", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_058_M", displayName = "TAT_BI_058", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_059_F", displayName = "TAT_BI_059", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_059_M", displayName = "TAT_BI_059", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_060_F", displayName = "TAT_BI_060", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpBiker_overlays", name = "MP_MP_Biker_Tat_060_M", displayName = "TAT_BI_060", gender = PedGender.MALE, zone = "TORSO"},
-            #endregion
-
-            #region mpChristmas2017_overlays
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_000_M", displayName = "TAT_H27_000", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_001_M", displayName = "TAT_H27_001", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_002_M", displayName = "TAT_H27_002", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_003_M", displayName = "TAT_H27_003", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_004_M", displayName = "TAT_H27_004", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_005_M", displayName = "TAT_H27_005", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_006_M", displayName = "TAT_H27_006", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_007_M", displayName = "TAT_H27_007", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_008_M", displayName = "TAT_H27_008", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_009_M", displayName = "TAT_H27_009", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_010_M", displayName = "TAT_H27_010", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_011_M", displayName = "TAT_H27_011", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_012_M", displayName = "TAT_H27_012", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_013_M", displayName = "TAT_H27_013", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_014_M", displayName = "TAT_H27_014", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_015_M", displayName = "TAT_H27_015", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_016_M", displayName = "TAT_H27_016", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_017_M", displayName = "TAT_H27_017", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_018_M", displayName = "TAT_H27_018", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_019_M", displayName = "TAT_H27_019", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_020_M", displayName = "TAT_H27_020", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_021_M", displayName = "TAT_H27_021", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_022_M", displayName = "TAT_H27_022", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_023_M", displayName = "TAT_H27_023", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_024_M", displayName = "TAT_H27_024", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_025_M", displayName = "TAT_H27_025", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_026_M", displayName = "TAT_H27_026", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_027_M", displayName = "TAT_H27_027", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_028_M", displayName = "TAT_H27_028", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_029_M", displayName = "TAT_H27_029", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_000_F", displayName = "TAT_H27_000", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_001_F", displayName = "TAT_H27_001", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_002_F", displayName = "TAT_H27_002", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_003_F", displayName = "TAT_H27_003", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_004_F", displayName = "TAT_H27_004", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_005_F", displayName = "TAT_H27_005", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_006_F", displayName = "TAT_H27_006", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_007_F", displayName = "TAT_H27_007", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_008_F", displayName = "TAT_H27_008", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_009_F", displayName = "TAT_H27_009", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_010_F", displayName = "TAT_H27_010", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_011_F", displayName = "TAT_H27_011", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_012_F", displayName = "TAT_H27_012", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_013_F", displayName = "TAT_H27_013", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_014_F", displayName = "TAT_H27_014", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_015_F", displayName = "TAT_H27_015", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_016_F", displayName = "TAT_H27_016", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_017_F", displayName = "TAT_H27_017", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_018_F", displayName = "TAT_H27_018", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_019_F", displayName = "TAT_H27_019", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_020_F", displayName = "TAT_H27_020", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_021_F", displayName = "TAT_H27_021", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_022_F", displayName = "TAT_H27_022", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_023_F", displayName = "TAT_H27_023", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_024_F", displayName = "TAT_H27_024", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_025_F", displayName = "TAT_H27_025", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_026_F", displayName = "TAT_H27_026", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_027_F", displayName = "TAT_H27_027", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_028_F", displayName = "TAT_H27_028", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpChristmas2017_overlays", name = "MP_Christmas2017_Tattoo_029_F", displayName = "TAT_H27_029", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            #endregion
-
-            #region mpGunrunning_overlays
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_000_M", displayName = "TAT_GR_000", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_001_M", displayName = "TAT_GR_001", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_002_M", displayName = "TAT_GR_002", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_003_M", displayName = "TAT_GR_003", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_004_M", displayName = "TAT_GR_004", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_005_M", displayName = "TAT_GR_005", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_006_M", displayName = "TAT_GR_006", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_007_M", displayName = "TAT_GR_007", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_000_F", displayName = "TAT_GR_000", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_001_F", displayName = "TAT_GR_001", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_002_F", displayName = "TAT_GR_002", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_003_F", displayName = "TAT_GR_003", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_004_F", displayName = "TAT_GR_004", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_005_F", displayName = "TAT_GR_005", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_006_F", displayName = "TAT_GR_006", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_007_F", displayName = "TAT_GR_007", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_008_M", displayName = "TAT_GR_008", gender = PedGender.MALE, zone = "LEFT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_009_M", displayName = "TAT_GR_009", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_010_M", displayName = "TAT_GR_010", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_011_M", displayName = "TAT_GR_011", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_012_M", displayName = "TAT_GR_012", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_013_M", displayName = "TAT_GR_013", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_014_M", displayName = "TAT_GR_014", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_015_M", displayName = "TAT_GR_015", gender = PedGender.MALE, zone = "LEFT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_016_M", displayName = "TAT_GR_016", gender = PedGender.MALE, zone = "LEFT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_017_M", displayName = "TAT_GR_017", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_018_M", displayName = "TAT_GR_018", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_019_M", displayName = "TAT_GR_019", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_020_M", displayName = "TAT_GR_020", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_021_M", displayName = "TAT_GR_021", gender = PedGender.MALE, zone = "RIGHT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_022_M", displayName = "TAT_GR_022", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_023_M", displayName = "TAT_GR_023", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_024_M", displayName = "TAT_GR_024", gender = PedGender.MALE, zone = "RIGHT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_025_M", displayName = "TAT_GR_025", gender = PedGender.MALE, zone = "LEFT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_026_M", displayName = "TAT_GR_026", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_027_M", displayName = "TAT_GR_027", gender = PedGender.MALE, zone = "LEFT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_028_M", displayName = "TAT_GR_028", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_029_M", displayName = "TAT_GR_029", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_030_M", displayName = "TAT_GR_030", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_008_F", displayName = "TAT_GR_008", gender = PedGender.FEMALE, zone = "LEFT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_009_F", displayName = "TAT_GR_009", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_010_F", displayName = "TAT_GR_010", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_011_F", displayName = "TAT_GR_011", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_012_F", displayName = "TAT_GR_012", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_013_F", displayName = "TAT_GR_013", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_014_F", displayName = "TAT_GR_014", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_015_F", displayName = "TAT_GR_015", gender = PedGender.FEMALE, zone = "LEFT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_016_F", displayName = "TAT_GR_016", gender = PedGender.FEMALE, zone = "LEFT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_017_F", displayName = "TAT_GR_017", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_018_F", displayName = "TAT_GR_018", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_019_F", displayName = "TAT_GR_019", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_020_F", displayName = "TAT_GR_020", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_021_F", displayName = "TAT_GR_021", gender = PedGender.FEMALE, zone = "RIGHT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_022_F", displayName = "TAT_GR_022", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_023_F", displayName = "TAT_GR_023", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_024_F", displayName = "TAT_GR_024", gender = PedGender.FEMALE, zone = "RIGHT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_025_F", displayName = "TAT_GR_025", gender = PedGender.FEMALE, zone = "LEFT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_026_F", displayName = "TAT_GR_026", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_027_F", displayName = "TAT_GR_027", gender = PedGender.FEMALE, zone = "LEFT"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_028_F", displayName = "TAT_GR_028", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_029_F", displayName = "TAT_GR_029", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpGunrunning_overlays", name = "MP_Gunrunning_Tattoo_030_F", displayName = "TAT_GR_030", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            #endregion
-
-            #region mpImportExport_overlays
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_000_M", displayName = "TAT_IE_000", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_001_M", displayName = "TAT_IE_001", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_002_M", displayName = "TAT_IE_002", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_003_M", displayName = "TAT_IE_003", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_004_M", displayName = "TAT_IE_004", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_005_M", displayName = "TAT_IE_005", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_006_M", displayName = "TAT_IE_006", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_007_M", displayName = "TAT_IE_007", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_008_M", displayName = "TAT_IE_008", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_009_M", displayName = "TAT_IE_009", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_010_M", displayName = "TAT_IE_010", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_011_M", displayName = "TAT_IE_011", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_000_F", displayName = "TAT_IE_000", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_001_F", displayName = "TAT_IE_001", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_002_F", displayName = "TAT_IE_002", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_003_F", displayName = "TAT_IE_003", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_004_F", displayName = "TAT_IE_004", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_005_F", displayName = "TAT_IE_005", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_006_F", displayName = "TAT_IE_006", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_007_F", displayName = "TAT_IE_007", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_008_F", displayName = "TAT_IE_008", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_009_F", displayName = "TAT_IE_009", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_010_F", displayName = "TAT_IE_010", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpImportExport_overlays", name = "MP_MP_ImportExport_Tat_011_F", displayName = "TAT_IE_011", gender = PedGender.FEMALE, zone = "TORSO"},
-            #endregion
-
-            #region mpLowrider2_overlays
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_000_M", displayName = "TAT_S2_000", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_003_M", displayName = "TAT_S2_003", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_006_M", displayName = "TAT_S2_006", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_008_M", displayName = "TAT_S2_008", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_011_M", displayName = "TAT_S2_011", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_012_M", displayName = "TAT_S2_012", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_016_M", displayName = "TAT_S2_016", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_018_M", displayName = "TAT_S2_018", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_019_M", displayName = "TAT_S2_019", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_022_M", displayName = "TAT_S2_022", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_028_M", displayName = "TAT_S2_028", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_029_M", displayName = "TAT_S2_029", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_030_M", displayName = "TAT_S2_030", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_031_M", displayName = "TAT_S2_031", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_032_M", displayName = "TAT_S2_032", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_035_M", displayName = "TAT_S2_035", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_000_F", displayName = "TAT_S2_000", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_003_F", displayName = "TAT_S2_003", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_006_F", displayName = "TAT_S2_006", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_008_F", displayName = "TAT_S2_008", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_011_F", displayName = "TAT_S2_011", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_012_F", displayName = "TAT_S2_012", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_016_F", displayName = "TAT_S2_016", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_018_F", displayName = "TAT_S2_018", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_019_F", displayName = "TAT_S2_019", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_022_F", displayName = "TAT_S2_022", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_028_F", displayName = "TAT_S2_028", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_029_F", displayName = "TAT_S2_029", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_030_F", displayName = "TAT_S2_030", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_031_F", displayName = "TAT_S2_031", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_032_F", displayName = "TAT_S2_032", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLowrider2_overlays", name = "MP_LR_Tat_035_F", displayName = "TAT_S2_035", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            #endregion
-
-            #region mpLuxe2_overlays
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_002_M", displayName = "TAT_L2_002", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_005_M", displayName = "TAT_L2_005", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_010_M", displayName = "TAT_L2_010", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_011_M", displayName = "TAT_L2_011", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_012_M", displayName = "TAT_L2_012", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_016_M", displayName = "TAT_L2_016", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_017_M", displayName = "TAT_L2_017", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_018_M", displayName = "TAT_L2_018", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_022_M", displayName = "TAT_L2_022", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_023_M", displayName = "TAT_L2_023", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_025_M", displayName = "TAT_L2_025", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_026_M", displayName = "TAT_L2_026", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_027_M", displayName = "TAT_L2_027", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_028_M", displayName = "TAT_L2_028", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_029_M", displayName = "TAT_L2_029", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_030_M", displayName = "TAT_L2_030", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_031_M", displayName = "TAT_L2_031", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_002_F", displayName = "TAT_L2_002", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_005_F", displayName = "TAT_L2_005", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_010_F", displayName = "TAT_L2_010", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_011_F", displayName = "TAT_L2_011", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_012_F", displayName = "TAT_L2_012", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_016_F", displayName = "TAT_L2_016", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_017_F", displayName = "TAT_L2_017", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_018_F", displayName = "TAT_L2_018", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_022_F", displayName = "TAT_L2_022", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_023_F", displayName = "TAT_L2_023", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_025_F", displayName = "TAT_L2_025", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_026_F", displayName = "TAT_L2_026", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_027_F", displayName = "TAT_L2_027", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_028_F", displayName = "TAT_L2_028", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_029_F", displayName = "TAT_L2_029", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_030_F", displayName = "TAT_L2_030", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpLuxe2_overlays", name = "MP_Luxe_Tat_031_F", displayName = "TAT_L2_031", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            #endregion
-
-            #region mpSmuggler_overlays
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_000_M", displayName = "TAT_SM_000", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_001_M", displayName = "TAT_SM_001", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_002_M", displayName = "TAT_SM_002", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_003_M", displayName = "TAT_SM_003", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_004_M", displayName = "TAT_SM_004", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_005_M", displayName = "TAT_SM_005", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_006_M", displayName = "TAT_SM_006", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_007_M", displayName = "TAT_SM_007", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_008_M", displayName = "TAT_SM_008", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_009_M", displayName = "TAT_SM_009", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_010_M", displayName = "TAT_SM_010", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_011_M", displayName = "TAT_SM_011", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_012_M", displayName = "TAT_SM_012", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_013_M", displayName = "TAT_SM_013", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_014_M", displayName = "TAT_SM_014", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_015_M", displayName = "TAT_SM_015", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_016_M", displayName = "TAT_SM_016", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_017_M", displayName = "TAT_SM_017", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_018_M", displayName = "TAT_SM_018", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_019_M", displayName = "TAT_SM_019", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_020_M", displayName = "TAT_SM_020", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_021_M", displayName = "TAT_SM_021", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_022_M", displayName = "TAT_SM_022", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_023_M", displayName = "TAT_SM_023", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_024_M", displayName = "TAT_SM_024", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_025_M", displayName = "TAT_SM_025", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_000_F", displayName = "TAT_SM_000", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_001_F", displayName = "TAT_SM_001", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_002_F", displayName = "TAT_SM_002", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_003_F", displayName = "TAT_SM_003", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_004_F", displayName = "TAT_SM_004", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_005_F", displayName = "TAT_SM_005", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_006_F", displayName = "TAT_SM_006", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_007_F", displayName = "TAT_SM_007", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_008_F", displayName = "TAT_SM_008", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_009_F", displayName = "TAT_SM_009", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_010_F", displayName = "TAT_SM_010", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_011_F", displayName = "TAT_SM_011", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_012_F", displayName = "TAT_SM_012", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_013_F", displayName = "TAT_SM_013", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_014_F", displayName = "TAT_SM_014", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_015_F", displayName = "TAT_SM_015", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_016_F", displayName = "TAT_SM_016", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_017_F", displayName = "TAT_SM_017", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_018_F", displayName = "TAT_SM_018", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_019_F", displayName = "TAT_SM_019", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_020_F", displayName = "TAT_SM_020", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_021_F", displayName = "TAT_SM_021", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_022_F", displayName = "TAT_SM_022", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_023_F", displayName = "TAT_SM_023", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_024_F", displayName = "TAT_SM_024", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpSmuggler_overlays", name = "MP_Smuggler_Tattoo_025_F", displayName = "TAT_SM_025", gender = PedGender.FEMALE, zone = "TORSO"},
-	        #endregion
-
-            #region mpStunt_overlays
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_000_M", displayName = "TAT_ST_000", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_001_M", displayName = "TAT_ST_001", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_002_M", displayName = "TAT_ST_002", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_003_M", displayName = "TAT_ST_003", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_004_M", displayName = "TAT_ST_004", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_005_M", displayName = "TAT_ST_005", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_006_M", displayName = "TAT_ST_006", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_007_M", displayName = "TAT_ST_007", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_008_M", displayName = "TAT_ST_008", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_009_M", displayName = "TAT_ST_009", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_010_M", displayName = "TAT_ST_010", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_011_M", displayName = "TAT_ST_011", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_012_M", displayName = "TAT_ST_012", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_013_M", displayName = "TAT_ST_013", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_014_M", displayName = "TAT_ST_014", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_015_M", displayName = "TAT_ST_015", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_016_M", displayName = "TAT_ST_016", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_017_M", displayName = "TAT_ST_017", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_018_M", displayName = "TAT_ST_018", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_019_M", displayName = "TAT_ST_019", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_020_M", displayName = "TAT_ST_020", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_021_M", displayName = "TAT_ST_021", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_022_M", displayName = "TAT_ST_022", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_023_M", displayName = "TAT_ST_023", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_024_M", displayName = "TAT_ST_024", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_025_M", displayName = "TAT_ST_025", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_026_M", displayName = "TAT_ST_026", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_027_M", displayName = "TAT_ST_027", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_028_M", displayName = "TAT_ST_028", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_029_M", displayName = "TAT_ST_029", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_030_M", displayName = "TAT_ST_030", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_031_M", displayName = "TAT_ST_031", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_032_M", displayName = "TAT_ST_032", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_033_M", displayName = "TAT_ST_033", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_034_M", displayName = "TAT_ST_034", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_035_M", displayName = "TAT_ST_035", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_036_M", displayName = "TAT_ST_036", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_037_M", displayName = "TAT_ST_037", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_038_M", displayName = "TAT_ST_038", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_039_M", displayName = "TAT_ST_039", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_040_M", displayName = "TAT_ST_040", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_041_M", displayName = "TAT_ST_041", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_042_M", displayName = "TAT_ST_042", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_043_M", displayName = "TAT_ST_043", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_044_M", displayName = "TAT_ST_044", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_045_M", displayName = "TAT_ST_045", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_046_M", displayName = "TAT_ST_046", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_047_M", displayName = "TAT_ST_047", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_048_M", displayName = "TAT_ST_048", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_049_M", displayName = "TAT_ST_049", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_000_F", displayName = "TAT_ST_000", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_001_F", displayName = "TAT_ST_001", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_002_F", displayName = "TAT_ST_002", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_003_F", displayName = "TAT_ST_003", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_004_F", displayName = "TAT_ST_004", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_005_F", displayName = "TAT_ST_005", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_006_F", displayName = "TAT_ST_006", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_007_F", displayName = "TAT_ST_007", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_008_F", displayName = "TAT_ST_008", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_009_F", displayName = "TAT_ST_009", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_010_F", displayName = "TAT_ST_010", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_011_F", displayName = "TAT_ST_011", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_012_F", displayName = "TAT_ST_012", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_013_F", displayName = "TAT_ST_013", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_014_F", displayName = "TAT_ST_014", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_015_F", displayName = "TAT_ST_015", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_016_F", displayName = "TAT_ST_016", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_017_F", displayName = "TAT_ST_017", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_018_F", displayName = "TAT_ST_018", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_019_F", displayName = "TAT_ST_019", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_020_F", displayName = "TAT_ST_020", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_021_F", displayName = "TAT_ST_021", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_022_F", displayName = "TAT_ST_022", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_023_F", displayName = "TAT_ST_023", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_024_F", displayName = "TAT_ST_024", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_025_F", displayName = "TAT_ST_025", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_026_F", displayName = "TAT_ST_026", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_027_F", displayName = "TAT_ST_027", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_028_F", displayName = "TAT_ST_028", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_029_F", displayName = "TAT_ST_029", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_030_F", displayName = "TAT_ST_030", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_031_F", displayName = "TAT_ST_031", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_032_F", displayName = "TAT_ST_032", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_033_F", displayName = "TAT_ST_033", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_034_F", displayName = "TAT_ST_034", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_035_F", displayName = "TAT_ST_035", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_036_F", displayName = "TAT_ST_036", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_037_F", displayName = "TAT_ST_037", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_038_F", displayName = "TAT_ST_038", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_039_F", displayName = "TAT_ST_039", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_040_F", displayName = "TAT_ST_040", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_041_F", displayName = "TAT_ST_041", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_042_F", displayName = "TAT_ST_042", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_043_F", displayName = "TAT_ST_043", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_044_F", displayName = "TAT_ST_044", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_045_F", displayName = "TAT_ST_045", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_046_F", displayName = "TAT_ST_046", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_047_F", displayName = "TAT_ST_047", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_048_F", displayName = "TAT_ST_048", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpStunt_overlays", name = "MP_MP_Stunt_Tat_049_F", displayName = "TAT_ST_049", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-
-	        #endregion
-
-            #region mpHipster_overlays
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_000", displayName = "TAT_HP_000", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_001", displayName = "TAT_HP_001", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_002", displayName = "TAT_HP_002", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_003", displayName = "TAT_HP_003", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_004", displayName = "TAT_HP_004", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_005", displayName = "TAT_HP_005", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_006", displayName = "TAT_HP_006", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_007", displayName = "TAT_HP_007", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_008", displayName = "TAT_HP_008", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_009", displayName = "TAT_HP_009", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_010", displayName = "TAT_HP_010", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_011", displayName = "TAT_HP_011", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_012", displayName = "TAT_HP_012", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_013", displayName = "TAT_HP_013", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_014", displayName = "TAT_HP_014", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_015", displayName = "TAT_HP_015", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_016", displayName = "TAT_HP_016", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_017", displayName = "TAT_HP_017", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_018", displayName = "TAT_HP_018", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_019", displayName = "TAT_HP_019", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_020", displayName = "TAT_HP_020", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_021", displayName = "TAT_HP_021", gender = PedGender.MALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_022", displayName = "TAT_HP_022", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_023", displayName = "TAT_HP_023", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_024", displayName = "TAT_HP_024", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_025", displayName = "TAT_HP_025", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_026", displayName = "TAT_HP_026", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_027", displayName = "TAT_HP_027", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_028", displayName = "TAT_HP_028", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_029", displayName = "TAT_HP_029", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_030", displayName = "TAT_HP_030", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_031", displayName = "TAT_HP_031", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_032", displayName = "TAT_HP_032", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_033", displayName = "TAT_HP_033", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_034", displayName = "TAT_HP_034", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_035", displayName = "TAT_HP_035", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_036", displayName = "TAT_HP_036", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_037", displayName = "TAT_HP_037", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_038", displayName = "TAT_HP_038", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_039", displayName = "TAT_HP_039", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_040", displayName = "TAT_HP_040", gender = PedGender.MALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_041", displayName = "TAT_HP_041", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_042", displayName = "TAT_HP_042", gender = PedGender.MALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_043", displayName = "TAT_HP_043", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_044", displayName = "TAT_HP_044", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_045", displayName = "TAT_HP_045", gender = PedGender.MALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_046", displayName = "TAT_HP_046", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_047", displayName = "TAT_HP_047", gender = PedGender.MALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_M_Tat_048", displayName = "TAT_HP_048", gender = PedGender.MALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_000", displayName = "TAT_HP_000", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_001", displayName = "TAT_HP_001", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_002", displayName = "TAT_HP_002", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_003", displayName = "TAT_HP_003", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_004", displayName = "TAT_HP_004", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_005", displayName = "TAT_HP_005", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_006", displayName = "TAT_HP_006", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_007", displayName = "TAT_HP_007", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_008", displayName = "TAT_HP_008", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_009", displayName = "TAT_HP_009", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_010", displayName = "TAT_HP_010", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_011", displayName = "TAT_HP_011", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_012", displayName = "TAT_HP_012", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_013", displayName = "TAT_HP_013", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_014", displayName = "TAT_HP_014", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_015", displayName = "TAT_HP_015", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_016", displayName = "TAT_HP_016", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_017", displayName = "TAT_HP_017", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_018", displayName = "TAT_HP_018", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_019", displayName = "TAT_HP_019", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_020", displayName = "TAT_HP_020", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_021", displayName = "TAT_HP_021", gender = PedGender.FEMALE, zone = "HEAD"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_022", displayName = "TAT_HP_022", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_023", displayName = "TAT_HP_023", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_024", displayName = "TAT_HP_024", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_025", displayName = "TAT_HP_025", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_026", displayName = "TAT_HP_026", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_027", displayName = "TAT_HP_027", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_028", displayName = "TAT_HP_028", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_029", displayName = "TAT_HP_029", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_030", displayName = "TAT_HP_030", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_031", displayName = "TAT_HP_031", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_032", displayName = "TAT_HP_032", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_033", displayName = "TAT_HP_033", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_034", displayName = "TAT_HP_034", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_035", displayName = "TAT_HP_035", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_036", displayName = "TAT_HP_036", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_037", displayName = "TAT_HP_037", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_038", displayName = "TAT_HP_038", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_039", displayName = "TAT_HP_039", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_040", displayName = "TAT_HP_040", gender = PedGender.FEMALE, zone = "LEFT_LEG"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_041", displayName = "TAT_HP_041", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_042", displayName = "TAT_HP_042", gender = PedGender.FEMALE, zone = "RIGHT_LEG"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_043", displayName = "TAT_HP_043", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_044", displayName = "TAT_HP_044", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_045", displayName = "TAT_HP_045", gender = PedGender.FEMALE, zone = "RIGHT_ARM"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_046", displayName = "TAT_HP_046", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_047", displayName = "TAT_HP_047", gender = PedGender.FEMALE, zone = "TORSO"},
-            new Tattoo(){collection = "mpHipster_overlays", name = "FM_Hip_F_Tat_048", displayName = "TAT_HP_048", gender = PedGender.FEMALE, zone = "LEFT_ARM"},
-
-	        #endregion
+            ["a_m_m_acult_01"] = "Acult01AMM",
+            ["a_m_m_afriamer_01"] = "AfriAmer01AMM",
+            ["a_m_m_beach_01"] = "Beach01AMM",
+            ["a_m_m_beach_02"] = "Beach02AMM",
+            ["a_m_m_bevhills_01"] = "Bevhills01AMM",
+            ["a_m_m_bevhills_02"] = "Bevhills02AMM",
+            ["a_m_m_business_01"] = "Business01AMM",
+            ["a_m_m_eastsa_01"] = "Eastsa01AMM",
+            ["a_m_m_eastsa_02"] = "Eastsa02AMM",
+            ["a_m_m_farmer_01"] = "Farmer01AMM",
+            ["a_m_m_fatlatin_01"] = "Fatlatin01AMM",
+            ["a_m_m_genfat_01"] = "Genfat01AMM",
+            ["a_m_m_genfat_02"] = "Genfat02AMM",
+            ["a_m_m_golfer_01"] = "Golfer01AMM",
+            ["a_m_m_hasjew_01"] = "Hasjew01AMM",
+            ["a_m_m_hillbilly_01"] = "Hillbilly01AMM",
+            ["a_m_m_hillbilly_02"] = "Hillbilly02AMM",
+            ["a_m_m_indian_01"] = "Indian01AMM",
+            ["a_m_m_ktown_01"] = "Ktown01AMM",
+            ["a_m_m_malibu_01"] = "Malibu01AMM",
+            ["a_m_m_mexcntry_01"] = "MexCntry01AMM",
+            ["a_m_m_mexlabor_01"] = "MexLabor01AMM",
+            ["a_m_m_og_boss_01"] = "OgBoss01AMM",
+            ["a_m_m_paparazzi_01"] = "Paparazzi01AMM",
+            ["a_m_m_polynesian_01"] = "Polynesian01AMM",
+            ["a_m_m_prolhost_01"] = "PrologueHostage01AMM",
+            ["a_m_m_rurmeth_01"] = "Rurmeth01AMM",
+            ["a_m_m_salton_01"] = "Salton01AMM",
+            ["a_m_m_salton_02"] = "Salton02AMM",
+            ["a_m_m_salton_03"] = "Salton03AMM",
+            ["a_m_m_salton_04"] = "Salton04AMM",
+            ["a_m_m_skater_01"] = "Skater01AMM",
+            ["a_m_m_skidrow_01"] = "Skidrow01AMM",
+            ["a_m_m_socenlat_01"] = "Socenlat01AMM",
+            ["a_m_m_soucent_01"] = "Soucent01AMM",
+            ["a_m_m_soucent_02"] = "Soucent02AMM",
+            ["a_m_m_soucent_03"] = "Soucent03AMM",
+            ["a_m_m_soucent_04"] = "Soucent04AMM",
+            ["a_m_m_stlat_02"] = "Stlat02AMM",
+            ["a_m_m_tennis_01"] = "Tennis01AMM",
+            ["a_m_m_tourist_01"] = "Tourist01AMM",
+            ["a_m_m_trampbeac_01"] = "TrampBeac01AMM",
+            ["a_m_m_tramp_01"] = "Tramp01AMM",
+            ["a_m_m_tranvest_01"] = "Tranvest01AMM",
+            ["a_m_m_tranvest_02"] = "Tranvest02AMM",
+            ["a_m_o_acult_01"] = "Acult01AMO",
+            ["a_m_o_acult_02"] = "Acult02AMO",
+            ["a_m_o_beach_01"] = "Beach01AMO",
+            ["a_m_o_genstreet_01"] = "Genstreet01AMO",
+            ["a_m_o_ktown_01"] = "Ktown01AMO",
+            ["a_m_o_salton_01"] = "Salton01AMO",
+            ["a_m_o_soucent_01"] = "Soucent01AMO",
+            ["a_m_o_soucent_02"] = "Soucent02AMO",
+            ["a_m_o_soucent_03"] = "Soucent03AMO",
+            ["a_m_o_tramp_01"] = "Tramp01AMO",
+            ["a_m_y_acult_01"] = "Acult01AMY",
+            ["a_m_y_acult_02"] = "Acult02AMY",
+            ["a_m_y_beachvesp_01"] = "Beachvesp01AMY",
+            ["a_m_y_beachvesp_02"] = "Beachvesp02AMY",
+            ["a_m_y_beach_01"] = "Beach01AMY",
+            ["a_m_y_beach_02"] = "Beach02AMY",
+            ["a_m_y_beach_03"] = "Beach03AMY",
+            ["a_m_y_bevhills_01"] = "Bevhills01AMY",
+            ["a_m_y_bevhills_02"] = "Bevhills02AMY",
+            ["a_m_y_breakdance_01"] = "Breakdance01AMY",
+            ["a_m_y_busicas_01"] = "Busicas01AMY",
+            ["a_m_y_business_01"] = "Business01AMY",
+            ["a_m_y_business_02"] = "Business02AMY",
+            ["a_m_y_business_03"] = "Business03AMY",
+            ["a_m_y_cyclist_01"] = "Cyclist01AMY",
+            ["a_m_y_dhill_01"] = "Dhill01AMY",
+            ["a_m_y_downtown_01"] = "Downtown01AMY",
+            ["a_m_y_eastsa_01"] = "Eastsa01AMY",
+            ["a_m_y_eastsa_02"] = "Eastsa02AMY",
+            ["a_m_y_epsilon_01"] = "Epsilon01AMY",
+            ["a_m_y_epsilon_02"] = "Epsilon02AMY",
+            ["a_m_y_gay_01"] = "Gay01AMY",
+            ["a_m_y_gay_02"] = "Gay02AMY",
+            ["a_m_y_genstreet_01"] = "Genstreet01AMY",
+            ["a_m_y_genstreet_02"] = "Genstreet02AMY",
+            ["a_m_y_golfer_01"] = "Golfer01AMY",
+            ["a_m_y_hasjew_01"] = "Hasjew01AMY",
+            ["a_m_y_hiker_01"] = "Hiker01AMY",
+            ["a_m_y_hippy_01"] = "Hippy01AMY",
+            ["a_m_y_hipster_01"] = "Hipster01AMY",
+            ["a_m_y_hipster_02"] = "Hipster02AMY",
+            ["a_m_y_hipster_03"] = "Hipster03AMY",
+            ["a_m_y_indian_01"] = "Indian01AMY",
+            ["a_m_y_jetski_01"] = "Jetski01AMY",
+            ["a_m_y_juggalo_01"] = "Juggalo01AMY",
+            ["a_m_y_ktown_01"] = "Ktown01AMY",
+            ["a_m_y_ktown_02"] = "Ktown02AMY",
+            ["a_m_y_latino_01"] = "Latino01AMY",
+            ["a_m_y_methhead_01"] = "Methhead01AMY",
+            ["a_m_y_mexthug_01"] = "MexThug01AMY",
+            ["a_m_y_motox_01"] = "Motox01AMY",
+            ["a_m_y_motox_02"] = "Motox02AMY",
+            ["a_m_y_musclbeac_01"] = "Musclbeac01AMY",
+            ["a_m_y_musclbeac_02"] = "Musclbeac02AMY",
+            ["a_m_y_polynesian_01"] = "Polynesian01AMY",
+            ["a_m_y_roadcyc_01"] = "Roadcyc01AMY",
+            ["a_m_y_runner_01"] = "Runner01AMY",
+            ["a_m_y_runner_02"] = "Runner02AMY",
+            ["a_m_y_salton_01"] = "Salton01AMY",
+            ["a_m_y_skater_01"] = "Skater01AMY",
+            ["a_m_y_skater_02"] = "Skater02AMY",
+            ["a_m_y_soucent_01"] = "Soucent01AMY",
+            ["a_m_y_soucent_02"] = "Soucent02AMY",
+            ["a_m_y_soucent_03"] = "Soucent03AMY",
+            ["a_m_y_soucent_04"] = "Soucent04AMY",
+            ["a_m_y_stbla_01"] = "Stbla01AMY",
+            ["a_m_y_stbla_02"] = "Stbla02AMY",
+            ["a_m_y_stlat_01"] = "Stlat01AMY",
+            ["a_m_y_stwhi_01"] = "Stwhi01AMY",
+            ["a_m_y_stwhi_02"] = "Stwhi02AMY",
+            ["a_m_y_sunbathe_01"] = "Sunbathe01AMY",
+            ["a_m_y_surfer_01"] = "Surfer01AMY",
+            ["a_m_y_vindouche_01"] = "Vindouche01AMY",
+            ["a_m_y_vinewood_01"] = "Vinewood01AMY",
+            ["a_m_y_vinewood_02"] = "Vinewood02AMY",
+            ["a_m_y_vinewood_03"] = "Vinewood03AMY",
+            ["a_m_y_vinewood_04"] = "Vinewood04AMY",
+            ["a_m_y_yoga_01"] = "Yoga01AMY"
+        };
+        private Dictionary<string, string> femaleModels = new Dictionary<string, string>()
+        {
+            ["a_f_m_beach_01"] = "Beach01AFM",
+            ["a_f_m_bevhills_01"] = "Bevhills01AFM",
+            ["a_f_m_bevhills_02"] = "Bevhills02AFM",
+            ["a_f_m_bodybuild_01"] = "Bodybuild01AFM",
+            ["a_f_m_business_02"] = "Business02AFM",
+            ["a_f_m_downtown_01"] = "Downtown01AFM",
+            ["a_f_m_eastsa_01"] = "Eastsa01AFM",
+            ["a_f_m_eastsa_02"] = "Eastsa02AFM",
+            ["a_f_m_fatbla_01"] = "FatBla01AFM",
+            ["a_f_m_fatcult_01"] = "FatCult01AFM",
+            ["a_f_m_fatwhite_01"] = "FatWhite01AFM",
+            ["a_f_m_ktown_01"] = "Ktown01AFM",
+            ["a_f_m_ktown_02"] = "Ktown02AFM",
+            ["a_f_m_prolhost_01"] = "PrologueHostage01AFM",
+            ["a_f_m_salton_01"] = "Salton01AFM",
+            ["a_f_m_skidrow_01"] = "Skidrow01AFM",
+            ["a_f_m_soucentmc_01"] = "Soucentmc01AFM",
+            ["a_f_m_soucent_01"] = "Soucent01AFM",
+            ["a_f_m_soucent_02"] = "Soucent02AFM",
+            ["a_f_m_tourist_01"] = "Tourist01AFM",
+            ["a_f_m_trampbeac_01"] = "TrampBeac01AFM",
+            ["a_f_m_tramp_01"] = "Tramp01AFM",
+            ["a_f_o_genstreet_01"] = "Genstreet01AFO",
+            ["a_f_o_indian_01"] = "Indian01AFO",
+            ["a_f_o_ktown_01"] = "Ktown01AFO",
+            ["a_f_o_salton_01"] = "Salton01AFO",
+            ["a_f_o_soucent_01"] = "Soucent01AFO",
+            ["a_f_o_soucent_02"] = "Soucent02AFO",
+            ["a_f_y_beach_01"] = "Beach01AFY",
+            ["a_f_y_bevhills_01"] = "Bevhills01AFY",
+            ["a_f_y_bevhills_02"] = "Bevhills02AFY",
+            ["a_f_y_bevhills_03"] = "Bevhills03AFY",
+            ["a_f_y_bevhills_04"] = "Bevhills04AFY",
+            ["a_f_y_business_01"] = "Business01AFY",
+            ["a_f_y_business_02"] = "Business02AFY",
+            ["a_f_y_business_03"] = "Business03AFY",
+            ["a_f_y_business_04"] = "Business04AFY",
+            ["a_f_y_eastsa_01"] = "Eastsa01AFY",
+            ["a_f_y_eastsa_02"] = "Eastsa02AFY",
+            ["a_f_y_eastsa_03"] = "Eastsa03AFY",
+            ["a_f_y_epsilon_01"] = "Epsilon01AFY",
+            ["a_f_y_fitness_01"] = "Fitness01AFY",
+            ["a_f_y_fitness_02"] = "Fitness02AFY",
+            ["a_f_y_genhot_01"] = "Genhot01AFY",
+            ["a_f_y_golfer_01"] = "Golfer01AFY",
+            ["a_f_y_hiker_01"] = "Hiker01AFY",
+            ["a_f_y_hippie_01"] = "Hippie01AFY",
+            ["a_f_y_hipster_01"] = "Hipster01AFY",
+            ["a_f_y_hipster_02"] = "Hipster02AFY",
+            ["a_f_y_hipster_03"] = "Hipster03AFY",
+            ["a_f_y_hipster_04"] = "Hipster04AFY",
+            ["a_f_y_indian_01"] = "Indian01AFY",
+            ["a_f_y_juggalo_01"] = "Juggalo01AFY",
+            ["a_f_y_runner_01"] = "Runner01AFY",
+            ["a_f_y_rurmeth_01"] = "Rurmeth01AFY",
+            ["a_f_y_scdressy_01"] = "Scdressy01AFY",
+            ["a_f_y_skater_01"] = "Skater01AFY",
+            ["a_f_y_soucent_01"] = "Soucent01AFY",
+            ["a_f_y_soucent_02"] = "Soucent02AFY",
+            ["a_f_y_soucent_03"] = "Soucent03AFY",
+            ["a_f_y_tennis_01"] = "Tennis01AFY",
+            ["a_f_y_topless_01"] = "Topless01AFY",
+            ["a_f_y_tourist_01"] = "Tourist01AFY",
+            ["a_f_y_tourist_02"] = "Tourist02AFY",
+            ["a_f_y_vinewood_01"] = "Vinewood01AFY",
+            ["a_f_y_vinewood_02"] = "Vinewood02AFY",
+            ["a_f_y_vinewood_03"] = "Vinewood03AFY",
+            ["a_f_y_vinewood_04"] = "Vinewood04AFY",
+            ["a_f_y_yoga_01"] = "Yoga01AFY"
+        };
+        private Dictionary<string, string> otherPeds = new Dictionary<string, string>()
+        {
+            ["csb_abigail"] = "AbigailCutscene",
+            ["csb_anita"] = "AnitaCutscene",
+            ["csb_anton"] = "AntonCutscene",
+            ["csb_ballasog"] = "BallasogCutscene",
+            ["csb_bride"] = "BrideCutscene",
+            ["csb_burgerdrug"] = "BurgerDrugCutscene",
+            ["csb_car3guy1"] = "Car3Guy1Cutscene",
+            ["csb_car3guy2"] = "Car3Guy2Cutscene",
+            ["csb_chef"] = "ChefCutscene",
+            ["csb_chin_goon"] = "ChinGoonCutscene",
+            ["csb_cletus"] = "CletusCutscene",
+            ["csb_cop"] = "CopCutscene",
+            ["csb_customer"] = "CustomerCutscene",
+            ["csb_denise_friend"] = "DeniseFriendCutscene",
+            ["csb_fos_rep"] = "FosRepCutscene",
+            ["csb_groom"] = "GroomCutscene",
+            ["csb_grove_str_dlr"] = "GroveStrDlrCutscene",
+            ["csb_g"] = "GCutscene",
+            ["csb_hao"] = "HaoCutscene",
+            ["csb_hugh"] = "HughCutscene",
+            ["csb_imran"] = "ImranCutscene",
+            ["csb_janitor"] = "JanitorCutscene",
+            ["csb_maude"] = "MaudeCutscene",
+            ["csb_mweather"] = "MerryWeatherCutscene",
+            ["csb_ortega"] = "OrtegaCutscene",
+            ["csb_oscar"] = "OscarCutscene",
+            ["csb_porndudes"] = "PornDudesCutscene",
+            ["csb_prologuedriver"] = "PrologueDriverCutscene",
+            ["csb_prolsec"] = "PrologueSec01Cutscene",
+            ["csb_ramp_gang"] = "RampGangCutscene",
+            ["csb_ramp_hic"] = "RampHicCutscene",
+            ["csb_ramp_hipster"] = "RampHipsterCutscene",
+            ["csb_ramp_marine"] = "RampMarineCutscene",
+            ["csb_ramp_mex"] = "RampMexCutscene",
+            ["csb_reporter"] = "ReporterCutscene",
+            ["csb_roccopelosi"] = "RoccoPelosiCutscene",
+            ["csb_screen_writer"] = "ScreenWriterCutscene",
+            ["csb_stripper_01"] = "Stripper01Cutscene",
+            ["csb_stripper_02"] = "Stripper02Cutscene",
+            ["csb_tonya"] = "TonyaCutscene",
+            ["csb_trafficwarden"] = "TrafficWardenCutscene",
+            ["g_f_y_ballas_01"] = "Ballas01GFY",
+            ["g_f_y_families_01"] = "Families01GFY",
+            ["g_f_y_lost_01"] = "Lost01GFY",
+            ["g_f_y_vagos_01"] = "Vagos01GFY",
+            ["g_m_m_armboss_01"] = "ArmBoss01GMM",
+            ["g_m_m_armgoon_01"] = "ArmGoon01GMM",
+            ["g_m_m_armlieut_01"] = "ArmLieut01GMM",
+            ["g_m_m_chemwork_01"] = "ChemWork01GMM",
+            ["g_m_m_chiboss_01"] = "ChiBoss01GMM",
+            ["g_m_m_chicold_01"] = "ChiCold01GMM",
+            ["g_m_m_chigoon_01"] = "ChiGoon01GMM",
+            ["g_m_m_chigoon_02"] = "ChiGoon02GMM",
+            ["g_m_m_korboss_01"] = "KorBoss01GMM",
+            ["g_m_m_mexboss_01"] = "MexBoss01GMM",
+            ["g_m_m_mexboss_02"] = "MexBoss02GMM",
+            ["g_m_y_armgoon_02"] = "ArmGoon02GMY",
+            ["g_m_y_azteca_01"] = "Azteca01GMY",
+            ["g_m_y_ballaeast_01"] = "BallaEast01GMY",
+            ["g_m_y_ballaorig_01"] = "BallaOrig01GMY",
+            ["g_m_y_ballasout_01"] = "BallaSout01GMY",
+            ["g_m_y_famca_01"] = "Famca01GMY",
+            ["g_m_y_famdnf_01"] = "Famdnf01GMY",
+            ["g_m_y_famfor_01"] = "Famfor01GMY",
+            ["g_m_y_korean_01"] = "Korean01GMY",
+            ["g_m_y_korean_02"] = "Korean02GMY",
+            ["g_m_y_korlieut_01"] = "KorLieut01GMY",
+            ["g_m_y_lost_01"] = "Lost01GMY",
+            ["g_m_y_lost_02"] = "Lost02GMY",
+            ["g_m_y_lost_03"] = "Lost03GMY",
+            ["g_m_y_mexgang_01"] = "MexGang01GMY",
+            ["g_m_y_mexgoon_01"] = "MexGoon01GMY",
+            ["g_m_y_mexgoon_02"] = "MexGoon02GMY",
+            ["g_m_y_mexgoon_03"] = "MexGoon03GMY",
+            ["g_m_y_pologoon_01"] = "PoloGoon01GMY",
+            ["g_m_y_pologoon_02"] = "PoloGoon02GMY",
+            ["g_m_y_salvaboss_01"] = "SalvaBoss01GMY",
+            ["g_m_y_salvagoon_01"] = "SalvaGoon01GMY",
+            ["g_m_y_salvagoon_02"] = "SalvaGoon02GMY",
+            ["g_m_y_salvagoon_03"] = "SalvaGoon03GMY",
+            ["g_m_y_strpunk_01"] = "StrPunk01GMY",
+            ["g_m_y_strpunk_02"] = "StrPunk02GMY",
+            ["hc_driver"] = "PestContDriver",
+            ["hc_gunman"] = "PestContGunman",
+            ["hc_hacker"] = "Hacker",
+            ["ig_abigail"] = "Abigail",
+            ["ig_amandatownley"] = "AmandaTownley",
+            ["ig_andreas"] = "Andreas",
+            ["ig_ashley"] = "Ashley",
+            ["ig_ballasog"] = "Ballasog",
+            ["ig_bankman"] = "Bankman",
+            ["ig_barry"] = "Barry",
+            ["ig_bestmen"] = "Bestmen",
+            ["ig_beverly"] = "Beverly",
+            ["ig_brad"] = "Brad",
+            ["ig_bride"] = "Bride",
+            ["ig_car3guy1"] = "Car3Guy1",
+            ["ig_car3guy2"] = "Car3Guy2",
+            ["ig_casey"] = "Casey",
+            ["ig_chef"] = "Chef",
+            ["ig_chengsr"] = "WeiCheng",
+            ["ig_chrisformage"] = "CrisFormage",
+            ["ig_claypain"] = "Claypain",
+            ["ig_clay"] = "Clay",
+            ["ig_cletus"] = "Cletus",
+            ["ig_dale"] = "Dale",
+            ["ig_davenorton"] = "DaveNorton",
+            ["ig_denise"] = "Denise",
+            ["ig_devin"] = "Devin",
+            ["ig_dom"] = "Dom",
+            ["ig_dreyfuss"] = "Dreyfuss",
+            ["ig_drfriedlander"] = "DrFriedlander",
+            ["ig_fabien"] = "Fabien",
+            ["ig_fbisuit_01"] = "FbiSuit01",
+            ["ig_floyd"] = "Floyd",
+            ["ig_groom"] = "Groom",
+            ["ig_hao"] = "Hao",
+            ["ig_hunter"] = "Hunter",
+            ["ig_janet"] = "Janet",
+            ["ig_jay_norris"] = "JayNorris",
+            ["ig_jewelass"] = "Jewelass",
+            ["ig_jimmyboston"] = "JimmyBoston",
+            ["ig_jimmydisanto"] = "JimmyDisanto",
+            ["ig_joeminuteman"] = "JoeMinuteman",
+            ["ig_johnnyklebitz"] = "JohnnyKlebitz",
+            ["ig_josef"] = "Josef",
+            ["ig_josh"] = "Josh",
+            ["ig_kerrymcintosh"] = "KerryMcintosh",
+            ["ig_lamardavis"] = "LamarDavis",
+            ["ig_lazlow"] = "Lazlow",
+            ["ig_lestercrest"] = "LesterCrest",
+            ["ig_lifeinvad_01"] = "Lifeinvad01",
+            ["ig_lifeinvad_02"] = "Lifeinvad02",
+            ["ig_magenta"] = "Magenta",
+            ["ig_manuel"] = "Manuel",
+            ["ig_marnie"] = "Marnie",
+            ["ig_maryann"] = "MaryAnn",
+            ["ig_maude"] = "Maude",
+            ["ig_michelle"] = "Michelle",
+            ["ig_milton"] = "Milton",
+            ["ig_molly"] = "Molly",
+            ["ig_mrk"] = "MrK",
+            ["ig_mrsphillips"] = "MrsPhillips",
+            ["ig_mrs_thornhill"] = "MrsThornhill",
+            ["ig_natalia"] = "Natalia",
+            ["ig_nervousron"] = "NervousRon",
+            ["ig_nigel"] = "Nigel",
+            ["ig_old_man1a"] = "OldMan1a",
+            ["ig_old_man2"] = "OldMan2",
+            ["ig_omega"] = "Omega",
+            ["ig_oneil"] = "ONeil",
+            ["ig_orleans"] = "Orleans",
+            ["ig_ortega"] = "Ortega",
+            ["ig_paper"] = "Paper",
+            ["ig_patricia"] = "Patricia",
+            ["ig_priest"] = "Priest",
+            ["ig_prolsec_02"] = "PrologueSec02",
+            ["ig_ramp_gang"] = "RampGang",
+            ["ig_ramp_hic"] = "RampHic",
+            ["ig_ramp_hipster"] = "RampHipster",
+            ["ig_ramp_mex"] = "RampMex",
+            ["ig_roccopelosi"] = "RoccoPelosi",
+            ["ig_russiandrunk"] = "RussianDrunk",
+            ["ig_screen_writer"] = "ScreenWriter",
+            ["ig_siemonyetarian"] = "SiemonYetarian",
+            ["ig_solomon"] = "Solomon",
+            ["ig_stevehains"] = "SteveHains",
+            ["ig_stretch"] = "Stretch",
+            ["ig_talina"] = "Talina",
+            ["ig_tanisha"] = "Tanisha",
+            ["ig_taocheng"] = "TaoCheng",
+            ["ig_taostranslator"] = "TaosTranslator",
+            ["ig_tenniscoach"] = "TennisCoach",
+            ["ig_terry"] = "Terry",
+            ["ig_tomepsilon"] = "TomEpsilon",
+            ["ig_tonya"] = "Tonya",
+            ["ig_tracydisanto"] = "TracyDisanto",
+            ["ig_trafficwarden"] = "TrafficWarden",
+            ["ig_tylerdix"] = "TylerDixon",
+            ["ig_wade"] = "Wade",
+            ["ig_zimbor"] = "Zimbor",
+            ["mp_f_deadhooker"] = "DeadHooker",
+            ["mp_f_misty_01"] = "Misty01",
+            ["mp_f_stripperlite"] = "StripperLite",
+            ["mp_g_m_pros_01"] = "MPros01",
+            ["mp_m_claude_01"] = "Claude01",
+            ["mp_m_exarmy_01"] = "ExArmy01",
+            ["mp_m_famdd_01"] = "Famdd01",
+            ["mp_m_fibsec_01"] = "FibSec01",
+            ["mp_m_marston_01"] = "Marston01",
+            ["mp_m_niko_01"] = "Niko01",
+            ["mp_m_shopkeep_01"] = "ShopKeep01",
+            ["mp_s_m_armoured_01"] = "Armoured01",
+            ["s_f_m_fembarber"] = "FemBarberSFM",
+            ["s_f_m_maid_01"] = "Maid01SFM",
+            ["s_f_m_shop_high"] = "ShopHighSFM",
+            ["s_f_m_sweatshop_01"] = "Sweatshop01SFM",
+            ["s_f_y_airhostess_01"] = "Airhostess01SFY",
+            ["s_f_y_bartender_01"] = "Bartender01SFY",
+            ["s_f_y_baywatch_01"] = "Baywatch01SFY",
+            ["s_f_y_cop_01"] = "Cop01SFY",
+            ["s_f_y_factory_01"] = "Factory01SFY",
+            ["s_f_y_hooker_01"] = "Hooker01SFY",
+            ["s_f_y_hooker_02"] = "Hooker02SFY",
+            ["s_f_y_hooker_03"] = "Hooker03SFY",
+            ["s_f_y_migrant_01"] = "Migrant01SFY",
+            ["s_f_y_movprem_01"] = "MovPrem01SFY",
+            ["s_f_y_ranger_01"] = "Ranger01SFY",
+            ["s_f_y_scrubs_01"] = "Scrubs01SFY",
+            ["s_f_y_sheriff_01"] = "Sheriff01SFY",
+            ["s_f_y_shop_low"] = "ShopLowSFY",
+            ["s_f_y_shop_mid"] = "ShopMidSFY",
+            ["s_f_y_stripperlite"] = "StripperLiteSFY",
+            ["s_f_y_stripper_01"] = "Stripper01SFY",
+            ["s_f_y_stripper_02"] = "Stripper02SFY",
+            ["s_f_y_sweatshop_01"] = "Sweatshop01SFY",
+            ["s_m_m_ammucountry"] = "AmmuCountrySMM",
+            ["s_m_m_armoured_01"] = "Armoured01SMM",
+            ["s_m_m_armoured_02"] = "Armoured02SMM",
+            ["s_m_m_autoshop_01"] = "Autoshop01SMM",
+            ["s_m_m_autoshop_02"] = "Autoshop02SMM",
+            ["s_m_m_bouncer_01"] = "Bouncer01SMM",
+            ["s_m_m_chemsec_01"] = "ChemSec01SMM",
+            ["s_m_m_ciasec_01"] = "CiaSec01SMM",
+            ["s_m_m_cntrybar_01"] = "Cntrybar01SMM",
+            ["s_m_m_dockwork_01"] = "Dockwork01SMM",
+            ["s_m_m_doctor_01"] = "Doctor01SMM",
+            ["s_m_m_fiboffice_01"] = "FibOffice01SMM",
+            ["s_m_m_fiboffice_02"] = "FibOffice02SMM",
+            ["s_m_m_gaffer_01"] = "Gaffer01SMM",
+            ["s_m_m_gardener_01"] = "Gardener01SMM",
+            ["s_m_m_gentransport"] = "GentransportSMM",
+            ["s_m_m_hairdress_01"] = "Hairdress01SMM",
+            ["s_m_m_highsec_01"] = "Highsec01SMM",
+            ["s_m_m_highsec_02"] = "Highsec02SMM",
+            ["s_m_m_janitor"] = "JanitorSMM",
+            ["s_m_m_lathandy_01"] = "Lathandy01SMM",
+            ["s_m_m_lifeinvad_01"] = "Lifeinvad01SMM",
+            ["s_m_m_linecook"] = "LinecookSMM",
+            ["s_m_m_lsmetro_01"] = "Lsmetro01SMM",
+            ["s_m_m_mariachi_01"] = "Mariachi01SMM",
+            ["s_m_m_marine_01"] = "Marine01SMM",
+            ["s_m_m_marine_02"] = "Marine02SMM",
+            ["s_m_m_migrant_01"] = "Migrant01SMM",
+            ["s_m_m_movalien_01"] = "MovAlien01",
+            ["s_m_m_movprem_01"] = "Movprem01SMM",
+            ["s_m_m_movspace_01"] = "Movspace01SMM",
+            ["s_m_m_paramedic_01"] = "Paramedic01SMM",
+            ["s_m_m_pilot_01"] = "Pilot01SMM",
+            ["s_m_m_pilot_02"] = "Pilot02SMM",
+            ["s_m_m_postal_01"] = "Postal01SMM",
+            ["s_m_m_postal_02"] = "Postal02SMM",
+            ["s_m_m_prisguard_01"] = "Prisguard01SMM",
+            ["s_m_m_scientist_01"] = "Scientist01SMM",
+            ["s_m_m_security_01"] = "Security01SMM",
+            ["s_m_m_snowcop_01"] = "Snowcop01SMM",
+            ["s_m_m_strperf_01"] = "Strperf01SMM",
+            ["s_m_m_strpreach_01"] = "Strpreach01SMM",
+            ["s_m_m_strvend_01"] = "Strvend01SMM",
+            ["s_m_m_trucker_01"] = "Trucker01SMM",
+            ["s_m_m_ups_01"] = "Ups01SMM",
+            ["s_m_m_ups_02"] = "Ups02SMM",
+            ["s_m_o_busker_01"] = "Busker01SMO",
+            ["s_m_y_airworker"] = "AirworkerSMY",
+            ["s_m_y_ammucity_01"] = "Ammucity01SMY",
+            ["s_m_y_armymech_01"] = "Armymech01SMY",
+            ["s_m_y_autopsy_01"] = "Autopsy01SMY",
+            ["s_m_y_barman_01"] = "Barman01SMY",
+            ["s_m_y_baywatch_01"] = "Baywatch01SMY",
+            ["s_m_y_blackops_01"] = "Blackops01SMY",
+            ["s_m_y_blackops_02"] = "Blackops02SMY",
+            ["s_m_y_busboy_01"] = "Busboy01SMY",
+            ["s_m_y_chef_01"] = "Chef01SMY",
+            ["s_m_y_clown_01"] = "Clown01SMY",
+            ["s_m_y_construct_01"] = "Construct01SMY",
+            ["s_m_y_construct_02"] = "Construct02SMY",
+            ["s_m_y_cop_01"] = "Cop01SMY",
+            ["s_m_y_dealer_01"] = "Dealer01SMY",
+            ["s_m_y_devinsec_01"] = "Devinsec01SMY",
+            ["s_m_y_dockwork_01"] = "Dockwork01SMY",
+            ["s_m_y_doorman_01"] = "Doorman01SMY",
+            ["s_m_y_dwservice_01"] = "DwService01SMY",
+            ["s_m_y_dwservice_02"] = "DwService02SMY",
+            ["s_m_y_factory_01"] = "Factory01SMY",
+            ["s_m_y_fireman_01"] = "Fireman01SMY",
+            ["s_m_y_garbage"] = "GarbageSMY",
+            ["s_m_y_grip_01"] = "Grip01SMY",
+            ["s_m_y_hwaycop_01"] = "Hwaycop01SMY",
+            ["s_m_y_marine_01"] = "Marine01SMY",
+            ["s_m_y_marine_02"] = "Marine02SMY",
+            ["s_m_y_marine_03"] = "Marine03SMY",
+            ["s_m_y_mime"] = "MimeSMY",
+            ["s_m_y_pestcont_01"] = "PestCont01SMY",
+            ["s_m_y_pilot_01"] = "Pilot01SMY",
+            ["s_m_y_prismuscl_01"] = "PrisMuscl01SMY",
+            ["s_m_y_prisoner_01"] = "Prisoner01SMY",
+            ["s_m_y_ranger_01"] = "Ranger01SMY",
+            ["s_m_y_robber_01"] = "Robber01SMY",
+            ["s_m_y_sheriff_01"] = "Sheriff01SMY",
+            ["s_m_y_shop_mask"] = "ShopMaskSMY",
+            ["s_m_y_strvend_01"] = "Strvend01SMY",
+            ["s_m_y_swat_01"] = "Swat01SMY",
+            ["s_m_y_uscg_01"] = "Uscg01SMY",
+            ["s_m_y_valet_01"] = "Valet01SMY",
+            ["s_m_y_waiter_01"] = "Waiter01SMY",
+            ["s_m_y_winclean_01"] = "WinClean01SMY",
+            ["s_m_y_xmech_01"] = "Xmech01SMY",
+            ["s_m_y_xmech_02"] = "Xmech02SMY",
+            ["u_f_m_corpse_01"] = "Corpse01",
+            ["u_f_m_miranda"] = "Miranda",
+            ["u_f_m_promourn_01"] = "PrologueMournFemale01",
+            ["u_f_o_moviestar"] = "MovieStar",
+            ["u_f_o_prolhost_01"] = "PrologueHostage01",
+            ["u_f_y_bikerchic"] = "BikerChic",
+            ["u_f_y_comjane"] = "ComJane",
+            ["u_f_y_corpse_02"] = "Corpse02",
+            ["u_f_y_hotposh_01"] = "Hotposh01",
+            ["u_f_y_jewelass_01"] = "Jewelass01",
+            ["u_f_y_mistress"] = "Mistress",
+            ["u_f_y_poppymich"] = "Poppymich",
+            ["u_f_y_princess"] = "Princess",
+            ["u_f_y_spyactress"] = "SpyActress",
+            ["u_m_m_aldinapoli"] = "AlDiNapoli",
+            ["u_m_m_bankman"] = "Bankman01",
+            ["u_m_m_bikehire_01"] = "BikeHire01",
+            ["u_m_m_fibarchitect"] = "FibArchitect",
+            ["u_m_m_filmdirector"] = "FilmDirector",
+            ["u_m_m_glenstank_01"] = "Glenstank01",
+            ["u_m_m_griff_01"] = "Griff01",
+            ["u_m_m_jesus_01"] = "Jesus01",
+            ["u_m_m_jewelsec_01"] = "JewelSec01",
+            ["u_m_m_jewelthief"] = "JewelThief",
+            ["u_m_m_markfost"] = "Markfost",
+            ["u_m_m_partytarget"] = "PartyTarget",
+            ["u_m_m_prolsec_01"] = "PrologueSec01",
+            ["u_m_m_promourn_01"] = "PrologueMournMale01",
+            ["u_m_m_rivalpap"] = "RivalPaparazzi",
+            ["u_m_m_spyactor"] = "SpyActor",
+            ["u_m_m_willyfist"] = "WillyFist",
+            ["u_m_o_finguru_01"] = "Finguru01",
+            ["u_m_o_taphillbilly"] = "Taphillbilly",
+            ["u_m_o_tramp_01"] = "Tramp01",
+            ["u_m_y_abner"] = "Abner",
+            ["u_m_y_antonb"] = "Antonb",
+            ["u_m_y_babyd"] = "Babyd",
+            ["u_m_y_baygor"] = "Baygor",
+            ["u_m_y_burgerdrug_01"] = "BurgerDrug",
+            ["u_m_y_chip"] = "Chip",
+            ["u_m_y_cyclist_01"] = "Cyclist01",
+            ["u_m_y_fibmugger_01"] = "FibMugger01",
+            ["u_m_y_guido_01"] = "Guido01",
+            ["u_m_y_gunvend_01"] = "GunVend01",
+            ["u_m_y_hippie_01"] = "Hippie01",
+            ["u_m_y_imporage"] = "Imporage",
+            ["u_m_y_justin"] = "Justin",
+            ["u_m_y_mani"] = "Mani",
+            ["u_m_y_militarybum"] = "MilitaryBum",
+            ["u_m_y_paparazzi"] = "Paparazzi",
+            ["u_m_y_party_01"] = "Party01",
+            ["u_m_y_pogo_01"] = "Pogo01",
+            ["u_m_y_prisoner_01"] = "Prisoner01",
+            ["u_m_y_proldriver_01"] = "PrologueDriver",
+            ["u_m_y_rsranger_01"] = "RsRanger01AMO",
+            ["u_m_y_sbike"] = "SbikeAMO",
+            ["u_m_y_staggrm_01"] = "Staggrm01AMO",
+            ["u_m_y_tattoo_01"] = "Tattoo01AMO",
+            ["u_m_y_zombie_01"] = "Zombie01",
         };
 
-        #region old unused tattoo lists
-        //private readonly Dictionary<string, string> maleTattoos = new Dictionary<string, string>()
-        //{
-        //    ["FM_Tat_Award_M_000"] = "ZONE_HEAD",
-        //    ["FM_Tat_Award_M_001"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_Award_M_002"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_Award_M_003"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_004"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_005"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_006"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_Award_M_007"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_Award_M_008"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_009"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_Award_M_010"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_Award_M_011"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_012"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_013"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_014"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_015"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_Award_M_016"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_017"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_018"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_M_019"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_001"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_M_002"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_M_003"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_M_004"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_005"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_M_006"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_M_007"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_M_008"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_M_009"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_010"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_011"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_012"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_013"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_014"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_M_015"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_M_016"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_017"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_M_018"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_M_019"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_020"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_021"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_M_022"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_M_023"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_M_024"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_025"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_026"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_M_027"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_M_028"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_M_029"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_030"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_031"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_M_032"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_M_033"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_M_034"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_035"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_M_036"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_037"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_M_038"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_M_039"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_M_040"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_M_041"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_M_042"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_M_043"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_M_044"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_045"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_046"] = "ZONE_TORSO",
-        //    ["FM_Tat_M_047"] = "ZONE_RIGHT_ARM",
-        //    ["FM_M_Hair_001_a"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_001_b"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_001_c"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_001_d"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_001_e"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_003_a"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_003_b"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_003_c"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_003_d"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_003_e"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_006_a"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_006_b"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_006_c"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_006_d"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_006_e"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_008_a"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_008_b"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_008_c"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_008_d"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_008_e"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_long_a"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_long_b"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_long_c"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_long_d"] = "ZONE_HEAD",
-        //    ["FM_M_Hair_long_e"] = "ZONE_HEAD",
-        //};
-        //private readonly Dictionary<string, string> femaleTattoos = new Dictionary<string, string>()
-        //{
-        //    ["FM_Tat_Award_F_000"] = "ZONE_HEAD",
-        //    ["FM_Tat_Award_F_001"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_Award_F_002"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_Award_F_003"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_004"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_005"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_006"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_Award_F_007"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_Award_F_008"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_009"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_Award_F_010"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_Award_F_011"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_012"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_013"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_014"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_015"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_Award_F_016"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_017"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_018"] = "ZONE_TORSO",
-        //    ["FM_Tat_Award_F_019"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_001"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_F_002"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_F_003"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_F_004"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_005"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_F_006"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_F_007"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_F_008"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_F_009"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_010"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_011"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_012"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_013"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_014"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_F_015"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_F_016"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_017"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_F_018"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_F_019"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_020"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_021"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_F_022"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_F_023"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_F_024"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_025"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_026"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_F_027"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_F_028"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_F_029"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_030"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_031"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_F_032"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_F_033"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_F_034"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_035"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_F_036"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_037"] = "ZONE_LEFT_LEG",
-        //    ["FM_Tat_F_038"] = "ZONE_RIGHT_ARM",
-        //    ["FM_Tat_F_039"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_F_040"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_F_041"] = "ZONE_LEFT_ARM",
-        //    ["FM_Tat_F_042"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_F_043"] = "ZONE_RIGHT_LEG",
-        //    ["FM_Tat_F_044"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_045"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_046"] = "ZONE_TORSO",
-        //    ["FM_Tat_F_047"] = "ZONE_RIGHT_ARM",
-        //    ["FM_F_Hair_005_a"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_005_b"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_005_c"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_005_d"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_005_e"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_006_a"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_006_b"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_006_c"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_006_d"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_006_e"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_013_a"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_013_b"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_013_c"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_013_d"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_013_e"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_014_a"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_014_b"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_014_c"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_014_d"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_014_e"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_long_a"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_long_b"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_long_c"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_long_d"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_long_e"] = "ZONE_HEAD",
-        //};
-        //private readonly Dictionary<string, string> unisexTattoos = new Dictionary<string, string>()
-        //{
-        //    ["FM_Tat_M_000"] = "ZONE_RIGHT_ARM",
-        //    ["FM_F_Hair_003_a"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_003_b"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_003_c"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_003_d"] = "ZONE_HEAD",
-        //    ["FM_F_Hair_003_e"] = "ZONE_HEAD",
-        //};
+
         #endregion
-        #endregion
+
     }
 }

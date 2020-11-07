@@ -1,9 +1,10 @@
 #### Latest Builds
 
-|Master (Beta)|Development (Alpha/Latest)|Production (Stable)|
-|:-:|:-:|:-:|
-|[![Build Status](https://travis-ci.org/TomGrobbe/vMenu.svg?branch=master)](https://travis-ci.org/TomGrobbe/vMenu) | [![Build Status](https://travis-ci.org/TomGrobbe/vMenu.svg?branch=development)](https://travis-ci.org/TomGrobbe/vMenu) | [![Build Status](https://travis-ci.org/TomGrobbe/vMenu.svg?branch=production)](https://travis-ci.org/TomGrobbe/vMenu) |
+##### Latest AppVeyor build
 
+|Latest Build|
+|:-:|
+|[![Build status](https://ci.appveyor.com/api/projects/status/inf2kinljmp8a5ul?svg=true)](https://ci.appveyor.com/project/TomGrobbe/vmenu)|
 
 --------
 
@@ -11,11 +12,6 @@
 # vMenu
 vMenu is server sided menu for FiveM servers, including full\* permission support.
 
-### Demo Screenshots
-
-|Main Menu|Player Options|
-|:-:|:-:|
-|![Main Menu](https://www.vespura.com/hi/i/fef17e5.png)|![Player Options](https://www.vespura.com/hi/i/458b6e4.png)|
 
 \*(Some features do not have permissions support as they are either harmless or it'd just be silly to deny them. However, they will be disabled if you deny access to the submenu that they are a part of (eg: unlimited stamina in Player Options will be disabled if you deny `vMenu.PlayerOptions.Menu`.))
 
@@ -27,33 +23,49 @@ vMenu is server sided menu for FiveM servers, including full\* permission suppor
 
 Click [here](https://github.com/TomGrobbe/vMenu/releases) to go to the releases page and download it.
 
-
 --------
 
 ## Installation
-1. Download the latest release [HERE](https://github.com/TomGrobbe/vMenu/releases) (under "Assets", click vMenu-`{version}`.zip)
-2. Extract the folder `vMenu` and place it inside your `/resources/` folder (THE FOLDER NAME IS CASE SENSITIVE, THE RESOURCE WILL BREAK IF YOU FAIL TO NAME IT CORRECTLY). If you did it correctly, you'll end up with the `__resource.lua` file being right here: `/resources/vMenu/__resource.lua`.
-3. Next, copy the `permissions.cfg` file from `/resources/vMenu/config/permissions.cfg` to the same folder where your `server.cfg` file is located.
-4. Then open your `server.cfg` file and add this to the very top of the file: `exec permissions.cfg`. If you're updating from an older version of vMenu (before v1.1.5) then make sure to add `add_ace resource.vMenu command.sets allow` to the bottom of your `permissions.cfg` file.
-5. While still having the `server.cfg` file open, go to wherever you want your resources to start, and add `start vMenu` on a new line.
-6. Restart the server and you should be able to use all basic functions. For more advanced configuration options, checkout the [configuration wiki page](https://github.com/TomGrobbe/vMenu/wiki/Configuration). For info on how to setup the permissions, checkout the `PERMISSIONS.md` file inside the downloaded vMenu zip file, or checkout the [Permissions wiki page](https://github.com/TomGrobbe/vMenu/wiki/Permissions).
+Please follow the instructions over at the [vMenu docs](https://docs.vespura.com/vmenu/installation)
 
 ## Zap Hosting
 If you're using Zap Hosting, you may find that moving the `permissions.cfg` file to the same folder as your `server.cfg` file may not work correctly (it could get reset every time you restart your server).
 
 If this is the case, leave your `permissions.cfg` file here: `/resources/vMenu/config/permissions.cfg` and add the following to the very top of your server.cfg file: `exec resources/vMenu/config/permissions.cfg` (instead of `exec permissions.cfg`).
 
---------
-
-## Permissions & Configuration
-Checkout the [vMenu wiki](https://github.com/TomGrobbe/vMenu/wiki/) for more information about setting up permissions and configuring options for this menu.
-
+You can also use ZAP Hosting's one-click installer for vMenu. Get a ZAP-Hosting server with a 10% lifetime discount [HERE](https://zap-hosting.com/vespura) and make sure to use `Vespura-a-3715` at checkout.
 
 --------
 
+## Support
+If you like my work, please consider supporting me on [**Patreon**](https://www.patreon.com/vespura). I've put a _lot_ of my time and hard work into these and other projects.
 
-## NativeUI
-This menu is created using [a modified version of NativeUI](https://github.com/TomGrobbe/NativeUI), originally by [Guad](https://github.com/Guad/NativeUI).
+--------
+
+## Trouble shooting & support
+Take a look at the docs first of all. I will ignore you if your question is answered on the docs or the forum topic.
+
+- [docs](https://docs.vespura.com/vmenu/)
+- [forum topic](https://vespura.com/vmenu)
+- [discord](https://vespura.com/discord)
+
+
+--------
+
+## Permissions 
+Click [here](https://docs.vespura.com/vmenu/permissions-ref) for permissions information.
+
+## Configuration
+Click [here](https://docs.vespura.com/vmenu/configuration) for configuration options information.
+
+
+--------
+
+
+## MenuAPI
+Starting from vMenu v2.1.0, vMenu will be using [MenuAPI (MAPI)](https://github.com/TomGrobbe/MenuAPI), a custom menu API designed specifically for vMenu by me.
+
+vMenu v2.0.0 and earlier was [using a modified version of NativeUI](https://github.com/TomGrobbe/NativeUI), originally by [Guad](https://github.com/Guad/NativeUI), but converted to FiveM by the CitizenFX Collectives and myself (updated/refactored).
 
 
 --------
@@ -64,22 +76,9 @@ This menu is created using [a modified version of NativeUI](https://github.com/T
 
 Tom Grobbe - https://www.vespura.com/
 
-Copyright © 2017-2018
+Copyright © 2017-2020
 
+----
 
-THIS PROJECT USES A CUSTOM LICENSE. MAKE SURE TO READ IT BEFORE THINKING ABOUT DOING ANYTHING WITH VMENU.
-
-
-- YOU ARE ALLOWED TO USE VMENU ON AS MANY SERVERS AS YOU WANT.
-- _YOU ARE ALSO ALLOWED TO EDIT THIS RESOURCE TO ADD/CHANGE/REMOVE WHATEVER YOU WANT._ (see the exception to this rule in the "credits" section below)
-- **YOU ARE HOWEVER _NOT_ ALLOWED TO RE-RELEASE (EDITED OR NON-EDITED) VERSIONS OF THIS RESOURCE WITHOUT WRITTEN PERMISSIONS BY MYSELF (TOM GROBBE / VESPURA). FOR ADDED FEATURES/CHANGES, FEEL FREE TO CREATE A FORK & CREATE A PULL REQUEST.**
-
-
-**Credits**
-
-Never should you change the credits (for example in the in-game menu's about section) to claim this menu to be your own. 90% of the users will recognize this menu as being vMenu, so changing the name of it and removing the credits section, is just useless. You're just being extremely rude and nodoby likes you anymore if they find out you're a big fat liar.
-
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
-
+You can use and edit this code to your liking. However don't ever claim it to be your own code and always provide proper credit.
+I will, however, not help you if you want to modify my code.

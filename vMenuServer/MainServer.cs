@@ -1,50 +1,132 @@
-﻿using GHMatti.Http;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using CitizenFX.Core;
 using static CitizenFX.Core.Native.API;
 using Newtonsoft.Json;
-using System.Dynamic;
 using static vMenuServer.DebugLog;
+using static vMenuShared.ConfigManager;
+using vMenuShared;
 
 namespace vMenuServer
 {
 
     public static class DebugLog
     {
+        public enum LogLevel
+        {
+            error = 1,
+            success = 2,
+            info = 4,
+            warning = 3,
+            none = 0
+        }
+
         /// <summary>
         /// Global log data function, only logs when debugging is enabled.
         /// </summary>
         /// <param name="data"></param>
-        public static void Log(dynamic data)
+        public static void Log(dynamic data, LogLevel level = LogLevel.none)
         {
-            if (MainServer.DebugMode)
+            if (MainServer.DebugMode || level == LogLevel.error || level == LogLevel.warning)
             {
-                Debug.Write(data.ToString() + "\n");
+                string prefix = "[vMenu] ";
+                if (level == LogLevel.error)
+                {
+                    prefix = "^1[vMenu] [ERROR]^7 ";
+                }
+                else if (level == LogLevel.info)
+                {
+                    prefix = "^5[vMenu] [INFO]^7 ";
+                }
+                else if (level == LogLevel.success)
+                {
+                    prefix = "^2[vMenu] [SUCCESS]^7 ";
+                }
+                else if (level == LogLevel.warning)
+                {
+                    prefix = "^3[vMenu] [WARNING]^7 ";
+                }
+                Debug.WriteLine($"{prefix}[DEBUG LOG] {data.ToString()}");
             }
         }
     }
 
     public class MainServer : BaseScript
     {
-        public static bool UpToDate = true;
+        #region vars
         // Debug shows more information when doing certain things. Leave it off to improve performance!
-        public static bool DebugMode = GetResourceMetadata(GetCurrentResourceName(), "server_debug_mode", 0) == "true" ? true : false;
+        public static bool DebugMode = GetResourceMetadata(GetCurrentResourceName(), "server_debug_mode", 0) == "true";
 
         public static string Version { get { return GetResourceMetadata(GetCurrentResourceName(), "version", 0); } }
 
-        private int currentHours = 9;
-        private int currentMinutes = 0;
-        private string currentWeather = "CLEAR";
-        private bool dynamicWeather = true;
-        private bool blackout = false;
-        private bool freezeTime = false;
-        private int dynamicWeatherTimeLeft = 5 * 12 * 10; // 5 seconds * 12 (because the loop checks 12 times a minute) * 10 (10 minutes)
-        private long gameTimer = GetGameTimer();
-        private List<string> CloudTypes = new List<string>()
+        // Time
+        private int CurrentHours
+        {
+            get { return MathUtil.Clamp(GetSettingsInt(Setting.vmenu_current_hour), 0, 23); }
+            set { SetConvarReplicated(Setting.vmenu_current_hour.ToString(), MathUtil.Clamp(value, 0, 23).ToString()); }
+        }
+        private int CurrentMinutes
+        {
+            get { return MathUtil.Clamp(GetSettingsInt(Setting.vmenu_current_minute), 0, 59); }
+            set { SetConvarReplicated(Setting.vmenu_current_minute.ToString(), MathUtil.Clamp(value, 0, 59).ToString()); }
+        }
+        private int MinuteClockSpeed
+        {
+            get
+            {
+                var value = GetSettingsInt(Setting.vmenu_ingame_minute_duration);
+                if (value < 100) value = 2000;
+                return value;
+            }
+        }
+        private bool FreezeTime
+        {
+            get { return GetSettingsBool(Setting.vmenu_freeze_time); }
+            set { SetConvarReplicated(Setting.vmenu_freeze_time.ToString(), value.ToString().ToLower()); }
+        }
+        private bool IsServerTimeSynced { get { return GetSettingsBool(Setting.vmenu_sync_to_machine_time); } }
+
+
+        // Weather
+        private string CurrentWeather
+        {
+            get
+            {
+                var value = GetSettingsString(Setting.vmenu_current_weather, "CLEAR");
+                if (!WeatherTypes.Contains(value.ToUpper()))
+                {
+                    return "clear";
+                }
+                return value;
+            }
+            set
+            {
+                if (string.IsNullOrEmpty(value) || !WeatherTypes.Contains(value.ToUpper()))
+                {
+                    SetConvarReplicated(Setting.vmenu_current_weather.ToString(), "CLEAR");
+                }
+                SetConvarReplicated(Setting.vmenu_current_weather.ToString(), value.ToUpper());
+            }
+        }
+        private bool DynamicWeatherEnabled
+        {
+            get { return GetSettingsBool(Setting.vmenu_enable_dynamic_weather); }
+            set { SetConvarReplicated(Setting.vmenu_enable_dynamic_weather.ToString(), value.ToString().ToLower()); }
+        }
+        private bool BlackoutEnabled
+        {
+            get { return GetSettingsBool(Setting.vmenu_blackout_enabled); }
+            set { SetConvarReplicated(Setting.vmenu_blackout_enabled.ToString(), value.ToString().ToLower()); }
+        }
+        private int DynamicWeatherMinutes
+        {
+            get { return Math.Max(GetSettingsInt(Setting.vmenu_dynamic_weather_timer), 1); }
+        }
+        private long lastWeatherChange = 0;
+
+        private readonly List<string> CloudTypes = new List<string>()
         {
             "Cloudy 01",
             "RAIN",
@@ -67,248 +149,25 @@ namespace vMenuServer
             "horsey",
             "shower",
         };
-
-        public List<string> aceNames = new List<string>()
+        private readonly List<string> WeatherTypes = new List<string>()
         {
-            // Global
-            "Everything",
-            "DontKickMe",
-            "NoClip",
-
-            // Online Players
-            "OPMenu",
-            "OPAll",
-            "OPTeleport",
-            "OPWaypoint",
-            "OPSpectate",
-            "OPSummon",
-            "OPKill",
-            "OPKick",
-            "OPPermBan",
-            "OPTempBan",
-            "OPUnban",
-
-            // Player Options
-            "POMenu",
-            "POAll",
-            "POGod",
-            "POInvisible",
-            "POFastRun",
-            "POFastSwim",
-            "POSuperjump",
-            "PONoRagdoll",
-            "PONeverWanted",
-            "POSetWanted",
-            "POIgnored",
-            "POFunctions",
-            "POFreeze",
-            "POScenarios",
-            "POUnlimitedStamina",
-
-            // Vehicle Options
-            "VOMenu",
-            "VOAll",
-            "VOGod",
-            "VOSpecialGod",
-            "VORepair",
-            "VOWash",
-            "VOEngine",
-            "VOChangePlate",
-            "VOMod",
-            "VOColors",
-            "VOLiveries",
-            "VOComponents",
-            "VODoors",
-            "VOWindows",
-            "VOFreeze",
-            "VOTorqueMultiplier",
-            "VOPowerMultiplier",
-            "VOFlip",
-            "VOAlarm",
-            "VOCycleSeats",
-            "VOEngineAlwaysOn",
-            "VONoSiren",
-            "VONoHelmet",
-            "VOLights",
-            "VODelete",
-            "VOUnderglow",
-            "VOFlashHighbeamsOnHonk",
-            
-            // Vehicle Spawner
-            "VSMenu",
-            "VSAll",
-            "VSDisableReplacePrevious",
-            "VSSpawnByName",
-            "VSAddon",
-            "VSCompacts",
-            "VSSedans",
-            "VSSUVs",
-            "VSCoupes",
-            "VSMuscle",
-            "VSSportsClassic",
-            "VSSports",
-            "VSSuper",
-            "VSMotorcycles",
-            "VSOffRoad",
-            "VSIndustrial",
-            "VSUtility",
-            "VSVans",
-            "VSCycles",
-            "VSBoats",
-            "VSHelicopters",
-            "VSPlanes",
-            "VSService",
-            "VSEmergency",
-            "VSMilitary",
-            "VSCommercial",
-            "VSTrains",
-
-            // Saved Vehicles
-            "SVMenu",
-            "SVAll",
-            "SVSpawn",
-
-            // Player Appearance
-            "PAMenu",
-            "PAAll",
-            "PACustomize",
-            "PASpawnSaved",
-            "PASpawnNew",
-
-            // Time Options
-            "TOMenu",
-            "TOAll",
-            "TOFreezeTime",
-            "TOSetTime",
-
-            // Weather Options
-            "WOMenu",
-            "WOAll",
-            "WODynamic",
-            "WOBlackout",
-            "WOSetWeather",
-            "WORemoveClouds",
-            "WORandomizeClouds",
-
-            // Weapon Options
-            "WPMenu",
-            "WPAll",
-            "WPGetAll",
-            "WPRemoveAll",
-            "WPUnlimitedAmmo",
-            "WPNoReload",
-            "WPSpawn",
-            "WPSpawnByName",
-            "WPSetAllAmmo",
-            
-            // Weapons Permissions
-            "WPSniperRifle",
-            "WPFireExtinguisher",
-            "WPCompactGrenadeLauncher",
-            "WPSnowball",
-            "WPVintagePistol",
-            "WPCombatPDW",
-            "WPHeavySniperMk2",
-            "WPHeavySniper",
-            "WPSweeperShotgun",
-            "WPMicroSMG",
-            "WPWrench",
-            "WPPistol",
-            "WPPumpShotgun",
-            "WPAPPistol",
-            "WPBall",
-            "WPMolotov",
-            "WPSMG",
-            "WPStickyBomb",
-            "WPPetrolCan",
-            "WPStunGun",
-            "WPAssaultRifleMk2",
-            "WPHeavyShotgun",
-            "WPMinigun",
-            "WPGolfClub",
-            "WPFlareGun",
-            "WPFlare",
-            "WPGrenadeLauncherSmoke",
-            "WPHammer",
-            "WPCombatPistol",
-            "WPGusenberg",
-            "WPCompactRifle",
-            "WPHomingLauncher",
-            "WPNightstick",
-            "WPRailgun",
-            "WPSawnOffShotgun",
-            "WPSMGMk2",
-            "WPBullpupRifle",
-            "WPFirework",
-            "WPCombatMG",
-            "WPCarbineRifle",
-            "WPCrowbar",
-            "WPFlashlight",
-            "WPDagger",
-            "WPGrenade",
-            "WPPoolCue",
-            "WPBat",
-            "WPPistol50",
-            "WPKnife",
-            "WPMG",
-            "WPBullpupShotgun",
-            "WPBZGas",
-            "WPUnarmed",
-            "WPGrenadeLauncher",
-            "WPNightVision",
-            "WPMusket",
-            "WPProximityMine",
-            "WPAdvancedRifle",
-            "WPRPG",
-            "WPPipeBomb",
-            "WPMiniSMG",
-            "WPSNSPistol",
-            "WPPistolMk2",
-            "WPAssaultRifle",
-            "WPSpecialCarbine",
-            "WPRevolver",
-            "WPMarksmanRifle",
-            "WPBattleAxe",
-            "WPHeavyPistol",
-            "WPKnuckleDuster",
-            "WPMachinePistol",
-            "WPCombatMGMk2",
-            "WPMarksmanPistol",
-            "WPMachete",
-            "WPSwitchBlade",
-            "WPAssaultShotgun",
-            "WPDoubleBarrelShotgun",
-            "WPAssaultSMG",
-            "WPHatchet",
-            "WPBottle",
-            "WPCarbineRifleMk2",
-            "WPParachute",
-            "WPSmokeGrenade",
-
-            // Misc Settings
-            "MSAll",
-            "MSClearArea",
-            "MSTeleportToWp",
-            "MSShowCoordinates",
-            "MSShowLocation",
-            "MSJoinQuitNotifs",
-            "MSDeathNotifs",
-            "MSNightVision",
-            "MSThermalVision",
-            //"MSLocationBlips", // not yet implemented
-            "MSPlayerBlips",
-            "MSConnectionMenu",
-
-            // Voice Chat
-            "VCMenu",
-            "VCAll",
-            "VCEnable",
-            "VCShowSpeaker",
-            "VCStaffChannel",
+            "EXTRASUNNY",
+            "CLEAR",
+            "NEUTRAL",
+            "SMOG",
+            "FOGGY",
+            "CLOUDS",
+            "OVERCAST",
+            "CLEARING",
+            "RAIN",
+            "THUNDER",
+            "BLIZZARD",
+            "SNOW",
+            "SNOWLIGHT",
+            "XMAS",
+            "HALLOWEEN"
         };
-        public List<string> addonVehicles = new List<string>();
-        public List<string> addonPeds = new List<string>();
-        public List<string> addonWeapons = new List<string>();
+        #endregion
 
         #region Constructor
         /// <summary>
@@ -316,70 +175,11 @@ namespace vMenuServer
         /// </summary>
         public MainServer()
         {
-            RegisterCommand("vmenuserver", new Action<int, List<object>, string>(async (int source, List<object> args, string rawCommand) =>
-            {
-                if (args != null)
-                {
-                    if (args.Count > 0)
-                    {
-                        if (args[0].ToString().ToLower() == "debug")
-                        {
-                            DebugMode = !DebugMode;
-                            if (source < 1)
-                            {
-                                Debug.WriteLine($"Debug mode is now set to: {DebugMode}.");
-                            }
-                            else
-                            {
-                                new PlayerList()[source].TriggerEvent("chatMessage", $"vMenu Debug mode is now set to: {DebugMode}.");
-                            }
-                            return;
-                        }
-                        else if (args[0].ToString().ToLower() == "unban" && (source < 1))
-                        {
-                            if (args.Count() > 1 && !string.IsNullOrEmpty(args[1].ToString()))
-                            {
-                                string name = args[1].ToString().Trim();
-                                name = name.Replace("\"", "");
-                                name = BanManager.GetSafePlayerName(name);
-                                var bans = await BanManager.GetBanList();
-                                var banRecord = bans.Find(b => { return b.playerName == name; });
-                                if (banRecord.playerName != null)
-                                {
-                                    if (await BanManager.RemoveBan(banRecord))
-                                    {
-                                        Debug.WriteLine("Player has been successfully unbanned.");
-                                    }
-                                    else
-                                    {
-                                        Debug.WriteLine("Could not unban the player, are you sure this player is actually banned?");
-                                    }
-
-                                }
-                                else
-                                {
-                                    Debug.WriteLine($"Could not find a banned player by the name of '{name}'.");
-                                }
-                                bans = null;
-
-                            }
-                            else
-                            {
-                                Debug.WriteLine("You did not specify a player to unban, you must enter the FULL playername. Usage: vmenuserver unban \"playername\"");
-                            }
-                            return;
-                        }
-
-                    }
-                }
-                Debug.WriteLine($"vMenu is currently running version: {Version}.");
-
-            }), true);
-
+            // name check
             if (GetCurrentResourceName() != "vMenu")
             {
-                Exception InvalidNameException = new Exception("\r\n\r\n[vMenu] INSTALLATION ERROR!\r\nThe name of the resource is not valid. " +
-                    "Please change the folder name from '" + GetCurrentResourceName() + "' to 'vMenu' (case sensitive) instead!\r\n\r\n\r\n");
+                Exception InvalidNameException = new Exception("\r\n\r\n^1[vMenu] INSTALLATION ERROR!\r\nThe name of the resource is not valid. " +
+                    "Please change the folder name from '^3" + GetCurrentResourceName() + "^1' to '^2vMenu^1' (case sensitive) instead!\r\n\r\n\r\n^7");
                 try
                 {
                     throw InvalidNameException;
@@ -392,61 +192,328 @@ namespace vMenuServer
             else
             {
                 // Add event handlers.
-                EventHandlers.Add("vMenu:SummonPlayer", new Action<Player, int>(SummonPlayer));
-                EventHandlers.Add("vMenu:KillPlayer", new Action<Player, int>(KillPlayer));
-                EventHandlers.Add("vMenu:KickPlayer", new Action<Player, int, string>(KickPlayer));
-                EventHandlers.Add("vMenu:RequestPermissions", new Action<Player>(SendPermissionsAsync));
-                EventHandlers.Add("vMenu:UpdateServerWeather", new Action<string, bool, bool>(UpdateWeather));
-                EventHandlers.Add("vMenu:UpdateServerWeatherCloudsType", new Action<bool>(UpdateWeatherCloudsType));
-                EventHandlers.Add("vMenu:UpdateServerTime", new Action<int, int, bool>(UpdateTime));
-                EventHandlers.Add("vMenu:DisconnectSelf", new Action<Player>(DisconnectSource));
-
-                string addons = LoadResourceFile(GetCurrentResourceName(), "addons.json") ?? LoadResourceFile(GetCurrentResourceName(), "config/addons.json") ?? "{}";
-                var json = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(addons);
-
-                if (json.ContainsKey("vehicles"))
+                EventHandlers.Add("vMenu:GetPlayerIdentifiers", new Action<int, NetworkCallbackDelegate>((TargetPlayer, CallbackFunction) =>
                 {
-                    foreach (var modelName in json["vehicles"])
+                    List<string> data = new List<string>();
+                    Players[TargetPlayer].Identifiers.ToList().ForEach(e =>
                     {
-                        Log("Addon vehicle loaded: " + modelName);
-                        addonVehicles.Add(modelName);
-                    }
+                        if (!e.Contains("ip:"))
+                            data.Add(e);
+                    });
+                    CallbackFunction(JsonConvert.SerializeObject(data));
+                }));
+                EventHandlers.Add("vMenu:RequestPermissions", new Action<Player>(PermissionsManager.SetPermissionsForPlayer));
+                EventHandlers.Add("vMenu:RequestServerState", new Action<Player>(RequestServerStateFromPlayer));
+
+                // check addons file for errors
+                string addons = LoadResourceFile(GetCurrentResourceName(), "config/addons.json") ?? "{}";
+                try
+                {
+                    JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(addons);
+                    // If the above crashes, then the json is invalid and it'll throw warnings in the console.
+                }
+                catch (JsonReaderException ex)
+                {
+                    Debug.WriteLine($"\n\n^1[vMenu] [ERROR] ^7Your addons.json file contains a problem! Error details: {ex.Message}\n\n");
                 }
 
-                if (json.ContainsKey("peds"))
+                // check if permissions are setup (correctly)
+                if (!GetSettingsBool(Setting.vmenu_use_permissions))
                 {
-                    foreach (var modelName in json["peds"])
-                    {
-                        Log("Addon ped loaded:" + modelName);
-                        addonPeds.Add(modelName);
-                    }
+                    Debug.WriteLine("^3[vMenu] [WARNING] vMenu is set up to ignore permissions!\nIf you did this on purpose then you can ignore this warning.\nIf you did not set this on purpose, then you must have made a mistake while setting up vMenu.\nPlease read the vMenu documentation (^5https://docs.vespura.com/vmenu^3).\nMost likely you are not executing the permissions.cfg (correctly).^7");
                 }
 
-                if (json.ContainsKey("weapons"))
-                {
-                    foreach (var modelName in json["weapons"])
-                    {
-                        Log("Addon weapon loaded:" + modelName);
-                        addonWeapons.Add(modelName);
-                    }
-                }
+                Tick += PlayersFirstTick;
 
-                if ((GetConvar("vMenuDisableDynamicWeather", "false") ?? "false").ToLower() == "true")
-                {
-                    dynamicWeather = false;
-                }
-                Tick += WeatherLoop;
-                Tick += TimeLoop;
+                // Start the loops
+                if (GetSettingsBool(Setting.vmenu_enable_weather_sync))
+                    Tick += WeatherLoop;
+                if (GetSettingsBool(Setting.vmenu_enable_time_sync))
+                    Tick += TimeLoop;
             }
         }
+        #endregion
 
-        /// <summary>
-        /// Disconnect the source player because they used the disconnect menu button.
-        /// </summary>
-        /// <param name="src"></param>
-        private void DisconnectSource([FromSource] Player src)
+        #region command handler
+        [Command("vmenuserver", Restricted = true)]
+        private void ServerCommandHandler(int source, List<object> args, string rawCommand)
         {
-            src.Drop("You disconnected yourself.");
+            if (args != null)
+            {
+                if (args.Count > 0)
+                {
+                    if (args[0].ToString().ToLower() == "debug")
+                    {
+                        DebugMode = !DebugMode;
+                        if (source < 1)
+                        {
+                            Debug.WriteLine($"Debug mode is now set to: {DebugMode}.");
+                        }
+                        else
+                        {
+                            Players[source].TriggerEvent("chatMessage", $"vMenu Debug mode is now set to: {DebugMode}.");
+                        }
+                        return;
+                    }
+                    else if (args[0].ToString().ToLower() == "unban" && (source < 1))
+                    {
+                        if (args.Count() > 1 && !string.IsNullOrEmpty(args[1].ToString()))
+                        {
+                            var uuid = args[1].ToString().Trim();
+                            var bans = BanManager.GetBanList();
+                            var banRecord = bans.Find(b => { return b.uuid.ToString() == uuid; });
+                            if (banRecord != null)
+                            {
+                                BanManager.RemoveBan(banRecord);
+                                Debug.WriteLine("Player has been successfully unbanned.");
+                            }
+                            else
+                            {
+                                Debug.WriteLine($"Could not find a banned player with the provided uuid '{uuid}'.");
+                            }
+                        }
+                        else
+                        {
+                            Debug.WriteLine("You did not specify a player to unban, you must enter the FULL playername. Usage: vmenuserver unban \"playername\"");
+                        }
+                        return;
+                    }
+                    else if (args[0].ToString().ToLower() == "weather")
+                    {
+                        if (args.Count < 2 || string.IsNullOrEmpty(args[1].ToString()))
+                        {
+                            Debug.WriteLine("[vMenu] Invalid command syntax. Use 'vmenuserver weather <weatherType>' instead.");
+                        }
+                        else
+                        {
+                            string wtype = args[1].ToString().ToUpper();
+                            if (WeatherTypes.Contains(wtype))
+                            {
+                                TriggerEvent("vMenu:UpdateServerWeather", wtype, BlackoutEnabled, DynamicWeatherEnabled);
+                                Debug.WriteLine($"[vMenu] Weather is now set to: {wtype}");
+                            }
+                            else if (wtype.ToLower() == "dynamic")
+                            {
+                                if (args.Count == 3 && !string.IsNullOrEmpty(args[2].ToString()))
+                                {
+                                    if ((args[2].ToString().ToLower() ?? $"{DynamicWeatherEnabled}") == "true")
+                                    {
+                                        TriggerEvent("vMenu:UpdateServerWeather", CurrentWeather, BlackoutEnabled, true);
+                                        Debug.WriteLine("[vMenu] Dynamic weather is now turned on.");
+                                    }
+                                    else if ((args[2].ToString().ToLower() ?? $"{DynamicWeatherEnabled}") == "false")
+                                    {
+                                        TriggerEvent("vMenu:UpdateServerWeather", CurrentWeather, BlackoutEnabled, false);
+                                        Debug.WriteLine("[vMenu] Dynamic weather is now turned off.");
+                                    }
+                                    else
+                                    {
+                                        Debug.WriteLine("[vMenu] Invalid command usage. Correct syntax: vmenuserver weather dynamic <true|false>");
+                                    }
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("[vMenu] Invalid command usage. Correct syntax: vmenuserver weather dynamic <true|false>");
+                                }
+
+                            }
+                            else
+                            {
+                                Debug.WriteLine("[vMenu] This weather type is not valid!");
+                            }
+                        }
+                    }
+                    else if (args[0].ToString().ToLower() == "time")
+                    {
+                        if (args.Count == 2)
+                        {
+                            if (args[1].ToString().ToLower() == "freeze")
+                            {
+                                TriggerEvent("vMenu:UpdateServerTime", CurrentHours, CurrentMinutes, !FreezeTime);
+                                Debug.WriteLine($"Time is now {(FreezeTime ? "frozen" : "not frozen")}.");
+                            }
+                            else
+                            {
+                                Debug.WriteLine("Invalid syntax. Use: ^5vmenuserver time <freeze|<hour> <minute>>^7 instead.");
+                            }
+                        }
+                        else if (args.Count > 2)
+                        {
+                            if (int.TryParse(args[1].ToString(), out int hour))
+                            {
+                                if (int.TryParse(args[2].ToString(), out int minute))
+                                {
+                                    if (hour >= 0 && hour < 24)
+                                    {
+                                        if (minute >= 0 && minute < 60)
+                                        {
+                                            TriggerEvent("vMenu:UpdateServerTime", hour, minute, FreezeTime);
+                                            Debug.WriteLine($"Time is now {(hour < 10 ? ("0" + hour.ToString()) : hour.ToString())}:{(minute < 10 ? ("0" + minute.ToString()) : minute.ToString())}.");
+                                        }
+                                        else
+                                        {
+                                            Debug.WriteLine("Invalid minute provided. Value must be between 0 and 59.");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Debug.WriteLine("Invalid hour provided. Value must be between 0 and 23.");
+                                    }
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("Invalid syntax. Use: ^5vmenuserver time <freeze|<hour> <minute>>^7 instead.");
+                                }
+                            }
+                            else
+                            {
+                                Debug.WriteLine("Invalid syntax. Use: ^5vmenuserver time <freeze|<hour> <minute>>^7 instead.");
+                            }
+                        }
+                        else
+                        {
+                            Debug.WriteLine("Invalid syntax. Use: ^5vmenuserver time <freeze|<hour> <minute>>^7 instead.");
+                        }
+                    }
+                    else if (args[0].ToString().ToLower() == "ban" && source < 1)  // only do this via server console (server id < 1)
+                    {
+                        if (args.Count > 3)
+                        {
+                            Player p = null;
+
+                            bool findByServerId = args[1].ToString().ToLower() == "id";
+                            string identifier = args[2].ToString().ToLower();
+
+                            if (findByServerId)
+                            {
+                                if (Players.Any(player => player.Handle == identifier))
+                                {
+                                    p = Players.Single(pl => pl.Handle == identifier);
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("[vMenu] Could not find this player, make sure they are online.");
+                                    return;
+                                }
+                            }
+                            else
+                            {
+                                if (Players.Any(player => player.Name.ToLower() == identifier.ToLower()))
+                                {
+                                    p = Players.Single(pl => pl.Name.ToLower() == identifier.ToLower());
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("[vMenu] Could not find this player, make sure they are online.");
+                                    return;
+                                }
+                            }
+
+                            string reason = "Banned by staff for:";
+                            args.GetRange(3, args.Count - 3).ForEach(arg => reason += " " + arg);
+
+                            if (p != null)
+                            {
+                                BanManager.BanRecord ban = new BanManager.BanRecord(
+                                    BanManager.GetSafePlayerName(p.Name),
+                                    p.Identifiers.ToList(),
+                                    new DateTime(3000, 1, 1),
+                                    reason,
+                                    "Server Console",
+                                    new Guid()
+                                );
+
+                                BanManager.AddBan(ban);
+                                BanManager.BanLog($"[vMenu] Player {p.Name}^7 has been banned by Server Console for [{reason}].");
+                                TriggerEvent("vMenu:BanSuccessful", JsonConvert.SerializeObject(ban).ToString());
+                                string timeRemaining = BanManager.GetRemainingTimeMessage(ban.bannedUntil.Subtract(DateTime.Now));
+                                p.Drop($"You are banned from this server. Ban time remaining: {timeRemaining}. Banned by: {ban.bannedBy}. Ban reason: {ban.banReason}. Additional information: {vMenuShared.ConfigManager.GetSettingsString(vMenuShared.ConfigManager.Setting.vmenu_default_ban_message_information)}.");
+                            }
+                            else
+                            {
+                                Debug.WriteLine("[vMenu] Player not found, could not ban player.");
+                            }
+                        }
+                        else
+                        {
+                            Debug.WriteLine("[vMenu] Not enough arguments, syntax: ^5vmenuserver ban <id|name> <server id|username> <reason>^7.");
+                        }
+                    }
+                    else if (args[0].ToString().ToLower() == "help")
+                    {
+                        Debug.WriteLine("Available commands:");
+                        Debug.WriteLine("(server console only): vmenuserver ban <id|name> <server id|username> <reason> (player must be online!)");
+                        Debug.WriteLine("(server console only): vmenuserver unban <uuid>");
+                        Debug.WriteLine("vmenuserver weather <new weather type | dynamic <true | false>>");
+                        Debug.WriteLine("vmenuserver time <freeze|<hour> <minute>>");
+                        Debug.WriteLine("vmenuserver migrate (This copies all banned players in the bans.json file to the new ban system in vMenu v3.3.0, you only need to do this once)");
+                    }
+                    else if (args[0].ToString().ToLower() == "migrate" && source < 1)
+                    {
+                        string file = LoadResourceFile(GetCurrentResourceName(), "bans.json");
+                        if (string.IsNullOrEmpty(file) || file == "[]")
+                        {
+                            Debug.WriteLine("&1[vMenu] [ERROR]^7 No bans.json file found or it's empty.");
+                            return;
+                        }
+                        Debug.WriteLine("^5[vMenu] [INFO]^7 Importing all ban records from the bans.json file into the new storage system. ^3This may take some time...^7");
+                        var bans = JsonConvert.DeserializeObject<List<BanManager.BanRecord>>(file);
+                        bans.ForEach((br) =>
+                        {
+                            var record = new BanManager.BanRecord(br.playerName, br.identifiers, br.bannedUntil, br.banReason, br.bannedBy, Guid.NewGuid());
+                            BanManager.AddBan(record);
+                        });
+                        Debug.WriteLine("^2[vMenu] [SUCCESS]^7 All ban records have been imported. You now no longer need the bans.json file.");
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"vMenu is currently running version: {Version}. Try ^5vmenuserver help^7 for info.");
+                    }
+                }
+                else
+                {
+                    Debug.WriteLine($"vMenu is currently running version: {Version}. Try ^5vmenuserver help^7 for info.");
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"vMenu is currently running version: {Version}. Try ^5vmenuserver help^7 for info.");
+            }
+        }
+        #endregion
+
+        #region kick players from personal vehicle
+        /// <summary>
+        /// Makes the player leave the personal vehicle.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="vehicleNetId"></param>
+        /// <param name="playerOwner"></param>
+        [EventHandler("vMenu:GetOutOfCar")]
+        private void GetOutOfCar([FromSource] Player source, int vehicleNetId, int playerOwner)
+        {
+            if (source != null)
+            {
+                if (vMenuShared.PermissionsManager.GetPermissionAndParentPermissions(vMenuShared.PermissionsManager.Permission.PVKickPassengers).Any(perm => vMenuShared.PermissionsManager.IsAllowed(perm, source)))
+                {
+                    TriggerClientEvent("vMenu:GetOutOfCar", vehicleNetId, playerOwner);
+                    source.TriggerEvent("vMenu:Notify", "All passengers will be kicked out as soon as the vehicle stops moving, or after 10 seconds if they refuse to stop the vehicle.");
+                }
+            }
+        }
+        #endregion
+
+        #region clear area near pos
+        /// <summary>
+        /// Clear the area near this point for all players.
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="z"></param>
+        [EventHandler("vMenu:ClearArea")]
+        private void ClearAreaNearPos(float x, float y, float z)
+        {
+            TriggerClientEvent("vMenu:ClearArea", x, y, z);
         }
         #endregion
 
@@ -457,24 +524,37 @@ namespace vMenuServer
         /// <returns></returns>
         private async Task TimeLoop()
         {
-            await Delay(4000);
-            if (freezeTime)
+            if (IsServerTimeSynced)
             {
-                TriggerClientEvent("vMenu:SetTime", currentHours, currentMinutes, freezeTime);
+                var currentTime = DateTime.Now;
+                CurrentMinutes = currentTime.Minute;
+                CurrentHours = currentTime.Hour;
+
+                // Update this once every 60 seconds.
+                await Delay(60000);
             }
             else
             {
-                currentMinutes += 2;
-                if (currentMinutes > 59)
+                if (!FreezeTime)
                 {
-                    currentMinutes = 0;
-                    currentHours++;
+                    if ((CurrentMinutes + 1) > 59)
+                    {
+                        CurrentMinutes = 0;
+                        if ((CurrentHours + 1) > 23)
+                        {
+                            CurrentHours = 0;
+                        }
+                        else
+                        {
+                            CurrentHours++;
+                        }
+                    }
+                    else
+                    {
+                        CurrentMinutes++;
+                    }
                 }
-                if (currentHours > 23)
-                {
-                    currentHours = 0;
-                }
-                TriggerClientEvent("vMenu:SetTime", currentHours, currentMinutes, freezeTime);
+                await Delay(MinuteClockSpeed);
             }
         }
 
@@ -484,28 +564,41 @@ namespace vMenuServer
         /// <returns></returns>
         private async Task WeatherLoop()
         {
-            await Delay(5000);
-            if (dynamicWeather)
+            if (DynamicWeatherEnabled)
             {
-                dynamicWeatherTimeLeft -= 10;
-                if (dynamicWeatherTimeLeft < 10)
-                {
-                    dynamicWeatherTimeLeft = 5 * 12 * 10;
-                    RefreshWeather();
+                await Delay(DynamicWeatherMinutes * 60000);
 
-                    if (DebugMode)
+                if (GetSettingsBool(Setting.vmenu_enable_weather_sync))
+                {
+                    // Manage dynamic weather changes.
+
                     {
-                        long gameTimer2 = GetGameTimer();
-                        Log($"Duration: {((gameTimer2 - gameTimer) / 100).ToString()}. New Weather Type: {currentWeather}");
-                        gameTimer = gameTimer2;
+                        // Disable dynamic weather because these weather types shouldn't randomly change.
+                        if (CurrentWeather == "XMAS" || CurrentWeather == "HALLOWEEN" || CurrentWeather == "NEUTRAL")
+                        {
+                            DynamicWeatherEnabled = false;
+                            return;
+                        }
+
+                        // Is it time to generate a new weather type?
+                        if (GetGameTimer() - lastWeatherChange > (DynamicWeatherMinutes * 60000))
+                        {
+                            // Choose a new semi-random weather type.
+                            RefreshWeather();
+
+                            // Log if debug mode is on how long the change has taken and what the new weather type will be.
+                            if (DebugMode)
+                            {
+                                Log($"Changing weather, new weather: {CurrentWeather}");
+                            }
+                        }
                     }
                 }
             }
             else
             {
-                dynamicWeatherTimeLeft = 5 * 12 * 10;
+                await Delay(5000);
             }
-            TriggerClientEvent("vMenu:SetWeather", currentWeather, blackout, dynamicWeather);
         }
 
         /// <summary>
@@ -514,13 +607,13 @@ namespace vMenuServer
         private void RefreshWeather()
         {
             var random = new Random().Next(20);
-            if (currentWeather == "RAIN" || currentWeather == "THUNDER")
+            if (CurrentWeather == "RAIN" || CurrentWeather == "THUNDER")
             {
-                currentWeather = "CLEARING";
+                CurrentWeather = "CLEARING";
             }
-            else if (currentWeather == "CLEARING")
+            else if (CurrentWeather == "CLEARING")
             {
-                currentWeather = "CLOUDS";
+                CurrentWeather = "CLOUDS";
             }
             else
             {
@@ -532,34 +625,34 @@ namespace vMenuServer
                     case 3:
                     case 4:
                     case 5:
-                        currentWeather = (currentWeather == "EXTRASUNNY" ? "CLEAR" : "EXTRASUNNY");
+                        CurrentWeather = (CurrentWeather == "EXTRASUNNY" ? "CLEAR" : "EXTRASUNNY");
                         break;
                     case 6:
                     case 7:
                     case 8:
-                        currentWeather = (currentWeather == "SMOG" ? "FOGGY" : "SMOG");
+                        CurrentWeather = (CurrentWeather == "SMOG" ? "FOGGY" : "SMOG");
                         break;
                     case 9:
                     case 10:
                     case 11:
-                        currentWeather = (currentWeather == "CLOUDS" ? "OVERCAST" : "CLOUDS");
+                        CurrentWeather = (CurrentWeather == "CLOUDS" ? "OVERCAST" : "CLOUDS");
                         break;
                     case 12:
                     case 13:
                     case 14:
-                        currentWeather = (currentWeather == "CLOUDS" ? "OVERCAST" : "CLOUDS");
+                        CurrentWeather = (CurrentWeather == "CLOUDS" ? "OVERCAST" : "CLOUDS");
                         break;
                     case 15:
-                        currentWeather = (currentWeather == "OVERCAST" ? "THUNDER" : "OVERCAST");
+                        CurrentWeather = (CurrentWeather == "OVERCAST" ? "THUNDER" : "OVERCAST");
                         break;
                     case 16:
-                        currentWeather = (currentWeather == "CLOUDS" ? "EXTRASUNNY" : "RAIN");
+                        CurrentWeather = (CurrentWeather == "CLOUDS" ? "EXTRASUNNY" : "RAIN");
                         break;
                     case 17:
                     case 18:
                     case 19:
                     default:
-                        currentWeather = (currentWeather == "FOGGY" ? "SMOG" : "FOGGY");
+                        CurrentWeather = (CurrentWeather == "FOGGY" ? "SMOG" : "FOGGY");
                         break;
                 }
             }
@@ -574,18 +667,23 @@ namespace vMenuServer
         /// <param name="newWeather"></param>
         /// <param name="blackoutNew"></param>
         /// <param name="dynamicWeatherNew"></param>
+        [EventHandler("vMenu:UpdateServerWeather")]
         private void UpdateWeather(string newWeather, bool blackoutNew, bool dynamicWeatherNew)
         {
-            currentWeather = newWeather;
-            blackout = blackoutNew;
-            dynamicWeather = dynamicWeatherNew;
-            TriggerClientEvent("vMenu:SetWeather", currentWeather, blackout, dynamicWeather);
+            // Update the new weather related variables.
+            CurrentWeather = newWeather;
+            BlackoutEnabled = blackoutNew;
+            DynamicWeatherEnabled = dynamicWeatherNew;
+
+            // Reset the dynamic weather loop timer to another (default) 10 mintues.
+            lastWeatherChange = GetGameTimer();
         }
 
         /// <summary>
         /// Set a new random clouds type and opacity for all clients.
         /// </summary>
         /// <param name="removeClouds"></param>
+        [EventHandler("vMenu:UpdateServerWeatherCloudsType")]
         private void UpdateWeatherCloudsType(bool removeClouds)
         {
             if (removeClouds)
@@ -606,12 +704,12 @@ namespace vMenuServer
         /// <param name="newHours"></param>
         /// <param name="newMinutes"></param>
         /// <param name="freezeTimeNew"></param>
+        [EventHandler("vMenu:UpdateServerTime")]
         private void UpdateTime(int newHours, int newMinutes, bool freezeTimeNew)
         {
-            currentHours = newHours;
-            currentMinutes = newMinutes;
-            freezeTime = freezeTimeNew;
-            TriggerClientEvent("vMenu:SetTime", currentHours, currentMinutes, freezeTime);
+            CurrentHours = newHours;
+            CurrentMinutes = newMinutes;
+            FreezeTime = freezeTimeNew;
         }
         #endregion
 
@@ -622,13 +720,14 @@ namespace vMenuServer
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <param name="kickReason"></param>
+        [EventHandler("vMenu:KickPlayer")]
         private void KickPlayer([FromSource] Player source, int target, string kickReason = "You have been kicked from the server.")
         {
             if (IsPlayerAceAllowed(source.Handle, "vMenu.OnlinePlayers.Kick") || IsPlayerAceAllowed(source.Handle, "vMenu.Everything") ||
                 IsPlayerAceAllowed(source.Handle, "vMenu.OnlinePlayers.All"))
             {
                 // If the player is allowed to be kicked.
-                Player targetPlayer = new PlayerList()[target];
+                Player targetPlayer = Players[target];
                 if (targetPlayer != null)
                 {
                     if (!IsPlayerAceAllowed(targetPlayer.Handle, "vMenu.DontKickMe"))
@@ -650,7 +749,7 @@ namespace vMenuServer
             }
             else
             {
-                BanManager.BanCheater(new PlayerList()[target]);
+                BanManager.BanCheater(source);
             }
         }
 
@@ -659,23 +758,24 @@ namespace vMenuServer
         /// </summary>
         /// <param name="source"></param>
         /// <param name="target"></param>
+        [EventHandler("vMenu:KillPlayer")]
         private void KillPlayer([FromSource] Player source, int target)
         {
             if (IsPlayerAceAllowed(source.Handle, "vMenu.OnlinePlayers.Kill") || IsPlayerAceAllowed(source.Handle, "vMenu.Everything") ||
                 IsPlayerAceAllowed(source.Handle, "vMenu.OnlinePlayers.All"))
             {
-                Player targetPlayer = new PlayerList()[target];
+                Player targetPlayer = Players[target];
                 if (targetPlayer != null)
                 {
                     // Trigger the client event on the target player to make them kill themselves. R.I.P.
-                    TriggerClientEvent(player: targetPlayer, eventName: "vMenu:KillMe");
+                    TriggerClientEvent(player: targetPlayer, eventName: "vMenu:KillMe", args: source.Name);
                     return;
                 }
                 TriggerClientEvent(player: source, eventName: "vMenu:Notify", args: "An unknown error occurred. Report it here: vespura.com/vmenu");
             }
             else
             {
-                BanManager.BanCheater(new PlayerList()[target]);
+                BanManager.BanCheater(source);
             }
         }
 
@@ -684,13 +784,14 @@ namespace vMenuServer
         /// </summary>
         /// <param name="source"></param>
         /// <param name="target"></param>
+        [EventHandler("vMenu:SummonPlayer")]
         private void SummonPlayer([FromSource] Player source, int target)
         {
             if (IsPlayerAceAllowed(source.Handle, "vMenu.OnlinePlayers.Summon") || IsPlayerAceAllowed(source.Handle, "vMenu.Everything") ||
                 IsPlayerAceAllowed(source.Handle, "vMenu.OnlinePlayers.All"))
             {
                 // Trigger the client event on the target player to make them teleport to the source player.
-                Player targetPlayer = new PlayerList()[target];
+                Player targetPlayer = Players[target];
                 if (targetPlayer != null)
                 {
                     TriggerClientEvent(player: targetPlayer, eventName: "vMenu:GoToPlayer", args: source.Handle);
@@ -700,122 +801,51 @@ namespace vMenuServer
             }
             else
             {
-                BanManager.BanCheater(new PlayerList()[target]);
+                BanManager.BanCheater(source);
+            }
+        }
+
+        [EventHandler("vMenu:SendMessageToPlayer")]
+        private void SendPrivateMessage([FromSource] Player source, int targetServerId, string message)
+        {
+            Player targetPlayer = Players[targetServerId];
+            if (targetPlayer != null)
+            {
+                targetPlayer.TriggerEvent("vMenu:PrivateMessage", source.Handle, message);
+
+                foreach (Player p in Players)
+                {
+                    if (p != source && p != targetPlayer)
+                    {
+                        if (vMenuShared.PermissionsManager.IsAllowed(vMenuShared.PermissionsManager.Permission.OPSeePrivateMessages, p))
+                        {
+                            p.TriggerEvent("vMenu:Notify", $"[vMenu Staff Log] <C>{source.Name}</C>~s~ sent a PM to <C>{targetPlayer.Name}</C>~s~: {message}");
+                        }
+                    }
+                }
+            }
+        }
+
+        [EventHandler("vMenu:PmsDisabled")]
+        private void NotifySenderThatDmsAreDisabled([FromSource] Player source, string senderServerId)
+        {
+            var p = Players[int.Parse(senderServerId)];
+            if (p != null)
+            {
+                p.TriggerEvent("vMenu:Notify", $"Sorry, your private message to <C>{source.Name}</C>~s~ could not be delivered because they disabled private messages.");
             }
         }
         #endregion
 
-        #region Send Permissions & Settings to the requesting client
-        /// <summary>
-        /// Send the permissions to the client that requested it.
-        /// </summary>
-        /// <param name="player"></param>
-        private async void SendPermissionsAsync([FromSource] Player player)
-        {
-            // First send the vehicle & ped addons list
-            TriggerClientEvent(player, "vMenu:SetupAddonCars", "vehicles", addonVehicles);
-            TriggerClientEvent(player, "vMenu:SetupAddonPeds", "peds", addonPeds);
-            TriggerClientEvent(player, "vMenu:SetupAddonWeapons", "weapons", addonWeapons);
-
-            // Get Permissions
-            Dictionary<string, bool> perms = new Dictionary<string, bool>();
-            foreach (string ace in aceNames)
-            {
-                var realAceName = GetRealAceName(ace);
-                var allowed = IsPlayerAceAllowed(player.Handle, realAceName);
-                perms.Add(ace, allowed);
-            }
-
-            // Get Settings
-            Dictionary<string, string> options = new Dictionary<string, string>
-            {
-                { "menuKey", GetConvarInt("vMenuToggleMenuKey", 244).ToString() ?? "244" },
-                { "noclipKey", GetConvarInt("vMenuNoClipKey", 289).ToString() ?? "289" },
-                { "disableSync", GetConvar("vMenuDisableTimeAndWeatherSync", "false") ?? "false"}
-            };
-
-            // Send Permissions
-            TriggerClientEvent(player, "vMenu:SetPermissions", perms);
-
-            // Send Settings
-            await Delay(50);
-            TriggerClientEvent(player, "vMenu:SetOptions", options);
-            while (!UpdateChecker.CheckedForUpdates)
-            {
-                await Delay(0);
-            }
-            if (!UpToDate)
-            {
-                TriggerClientEvent(player, "vMenu:OutdatedResource");
-            }
-        }
-
-        private string GetRealAceName(string inputString)
-        {
-            string outputString = inputString;
-            var prefix = inputString.Substring(0, 2);
-
-            if (prefix == "OP")
-            {
-                outputString = "vMenu.OnlinePlayers." + inputString.Substring(2);
-            }
-            else if (prefix == "PO")
-            {
-                outputString = "vMenu.PlayerOptions." + inputString.Substring(2);
-            }
-            else if (prefix == "VO")
-            {
-                outputString = "vMenu.VehicleOptions." + inputString.Substring(2);
-            }
-            else if (prefix == "VS")
-            {
-                outputString = "vMenu.VehicleSpawner." + inputString.Substring(2);
-            }
-            else if (prefix == "SV")
-            {
-                outputString = "vMenu.SavedVehicles." + inputString.Substring(2);
-            }
-            else if (prefix == "PA")
-            {
-                outputString = "vMenu.PlayerAppearance." + inputString.Substring(2);
-            }
-            else if (prefix == "TO")
-            {
-                outputString = "vMenu.TimeOptions." + inputString.Substring(2);
-            }
-            else if (prefix == "WO")
-            {
-                outputString = "vMenu.WeatherOptions." + inputString.Substring(2);
-            }
-            else if (prefix == "WP")
-            {
-                outputString = "vMenu.WeaponOptions." + inputString.Substring(2);
-            }
-            else if (prefix == "MS")
-            {
-                outputString = "vMenu.MiscSettings." + inputString.Substring(2);
-            }
-            else if (prefix == "VC")
-            {
-                outputString = "vMenu.VoiceChat." + inputString.Substring(2);
-            }
-            else
-            {
-                outputString = "vMenu." + inputString;
-            }
-
-            return outputString;
-        }
-        #endregion
-
-
+        #region logging and update checks notifications
         /// <summary>
         /// If enabled using convars, will log all kick actions to the server console as well as an external file.
         /// </summary>
         /// <param name="kickLogMesage"></param>
         private static void KickLog(string kickLogMesage)
         {
-            if (GetConvar("vMenuLogKickActions", "false") == "true")
+            //if (GetConvar("vMenuLogKickActions", "true") == "true")
+            if (GetSettingsBool(Setting.vmenu_log_kick_actions))
             {
                 string file = LoadResourceFile(GetCurrentResourceName(), "vmenu.log") ?? "";
                 DateTime date = DateTime.Now;
@@ -827,8 +857,117 @@ namespace vMenuServer
                     (date.Second < 10 ? "0" : "") + date.Second;
                 string outputFile = file + $"[\t{formattedDate}\t] [KICK ACTION] {kickLogMesage}\n";
                 SaveResourceFile(GetCurrentResourceName(), "vmenu.log", outputFile, -1);
-                Debug.Write(kickLogMesage + "\n");
+                Debug.WriteLine("^3[vMenu] [KICK]^7 " + kickLogMesage + "\n");
             }
         }
+
+        #endregion
+
+        #region Add teleport location
+        [EventHandler("vMenu:SaveTeleportLocation")]
+        private void AddTeleportLocation([FromSource] Player source, string locationJson)
+        {
+            TeleportLocation location = JsonConvert.DeserializeObject<TeleportLocation>(locationJson);
+            if (GetTeleportLocationsData().Any(loc => loc.name == location.name))
+            {
+                Log("A teleport location with this name already exists, location was not saved.", LogLevel.error);
+                return;
+            }
+            var locs = GetLocations();
+            locs.teleports.Add(location);
+            if (!SaveResourceFile(GetCurrentResourceName(), "config/locations.json", JsonConvert.SerializeObject(locs, Formatting.Indented), -1))
+            {
+                Log("Could not save locations.json file, reason unknown.", LogLevel.error);
+            }
+            TriggerClientEvent("vMenu:UpdateTeleportLocations", JsonConvert.SerializeObject(locs.teleports));
+        }
+        #endregion
+
+        #region Infinity bits
+        private void RequestServerStateFromPlayer([FromSource] Player player)
+        {
+            player.TriggerEvent("vMenu:SetServerState", new
+            {
+                IsInfinity = GetConvar("onesync_enableInfinity", "false") == "true"
+            });
+        }
+
+        [EventHandler("vMenu:RequestPlayerList")]
+        private void RequestPlayerListFromPlayer([FromSource] Player player)
+        {
+            player.TriggerEvent("vMenu:ReceivePlayerList", Players.Select(p => new
+            {
+                n = p.Name,
+                s = int.Parse(p.Handle),
+            }));
+        }
+
+        [EventHandler("vMenu:GetPlayerCoords")]
+        private void GetPlayerCoords([FromSource] Player source, int playerId, NetworkCallbackDelegate callback)
+        {
+            if (IsPlayerAceAllowed(source.Handle, "vMenu.OnlinePlayers.Teleport") || IsPlayerAceAllowed(source.Handle, "vMenu.Everything") ||
+                IsPlayerAceAllowed(source.Handle, "vMenu.OnlinePlayers.All"))
+            {
+                var coords = Players[playerId]?.Character?.Position ?? Vector3.Zero;
+
+                _ = callback(coords);
+
+                return;
+            }
+
+            _ = callback(Vector3.Zero);
+        }
+        #endregion
+
+        #region Player join/quit
+        private HashSet<string> joinedPlayers = new HashSet<string>();
+
+        private Task PlayersFirstTick()
+        {
+            Tick -= PlayersFirstTick;
+
+            foreach (var player in Players)
+            {
+                joinedPlayers.Add(player.Handle);
+            }
+
+            return Task.FromResult(0);
+        }
+
+        [EventHandler("playerJoining")]
+        private void OnPlayerJoining([FromSource] Player sourcePlayer)
+        {
+            joinedPlayers.Add(sourcePlayer.Handle);
+
+            foreach (var player in Players)
+            {
+                if (IsPlayerAceAllowed(player.Handle, "vMenu.MiscSettings.JoinQuitNotifs") ||
+                    IsPlayerAceAllowed(player.Handle, "vMenu.MiscSettings.All"))
+                {
+                    player.TriggerEvent("vMenu:PlayerJoinQuit", sourcePlayer.Name, null);
+                }
+            }
+        }
+
+        [EventHandler("playerDropped")]
+        private void OnPlayerDropped([FromSource] Player sourcePlayer, string reason)
+        {
+            if (!joinedPlayers.Contains(sourcePlayer.Handle))
+            {
+                return;
+            }
+
+            joinedPlayers.Remove(sourcePlayer.Handle);
+
+            foreach (var player in Players)
+            {
+                if (IsPlayerAceAllowed(player.Handle, "vMenu.MiscSettings.JoinQuitNotifs") ||
+                    IsPlayerAceAllowed(player.Handle, "vMenu.MiscSettings.All"))
+                {
+                    player.TriggerEvent("vMenu:PlayerJoinQuit", sourcePlayer.Name, reason);
+                }
+            }
+        }
+        #endregion
     }
 }
