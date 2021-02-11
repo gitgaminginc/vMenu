@@ -686,6 +686,19 @@ namespace vMenuClient
                             case 5:
                                 veh.Mods.LicensePlateStyle = LicensePlateStyle.NorthYankton;
                                 break;
+                            //case 6:
+                            //    veh.Mods.LicensePlateStyle = (LicensePlateStyle)6;
+                            //    SetVehicleMod(veh.Handle, 26, 6, false);
+                                
+                            //    break;
+                            //case 7:
+                            //    veh.Mods.LicensePlateStyle = (LicensePlateStyle)7;
+                            //    SetVehicleMod(veh.Handle, 26, 7, false);
+                            //    break;
+                            //case 8:
+                            //    veh.Mods.LicensePlateStyle = (LicensePlateStyle)8;
+                            //    SetVehicleMod(veh.Handle, 26, 8, false);
+                            //    break;
                             default:
                                 break;
                         }
@@ -939,12 +952,12 @@ namespace vMenuClient
             MenuController.BindMenuItem(VehicleColorsMenu, primaryColorsMenu, primaryColorsBtn);
 
             // secondary menu
-            Menu secondaryColorsMenu = new Menu("Vehicle Colors", "Secondary Colors");
-            MenuController.AddSubmenu(VehicleColorsMenu, secondaryColorsMenu);
+           //Menu secondaryColorsMenu = new Menu("Vehicle Colors", "Secondary Colors");
+           //MenuController.AddSubmenu(VehicleColorsMenu, secondaryColorsMenu);
 
-            MenuItem secondaryColorsBtn = new MenuItem("Secondary Color") { Label = "→→→" };
-            VehicleColorsMenu.AddMenuItem(secondaryColorsBtn);
-            MenuController.BindMenuItem(VehicleColorsMenu, secondaryColorsMenu, secondaryColorsBtn);
+            //MenuItem secondaryColorsBtn = new MenuItem("Secondary Color") { Label = "→→→" };
+            //VehicleColorsMenu.AddMenuItem(secondaryColorsBtn);
+            //MenuController.BindMenuItem(VehicleColorsMenu, secondaryColorsMenu, secondaryColorsBtn);
 
             // color lists
             List<string> classic = new List<string>();
@@ -994,14 +1007,14 @@ namespace vMenuClient
                 wheelColors.AddRange(classic);
             }
 
-            MenuListItem wheelColorsList = new MenuListItem("Wheel Color", wheelColors, 0);
-            MenuListItem dashColorList = new MenuListItem("Dashboard Color", classic, 0);
-            MenuListItem intColorList = new MenuListItem("Interior / Trim Color", classic, 0);
-            MenuSliderItem vehicleEnveffScale = new MenuSliderItem("Vehicle Enveff Scale", "This works on certain vehicles only, like the besra for example. It 'fades' certain paint layers.", 0, 20, 10, true);
+            //MenuListItem wheelColorsList = new MenuListItem("Wheel Color", wheelColors, 0);
+            //MenuListItem dashColorList = new MenuListItem("Dashboard Color", classic, 0);
+            //MenuListItem intColorList = new MenuListItem("Interior / Trim Color", classic, 0);
+            //MenuSliderItem vehicleEnveffScale = new MenuSliderItem("Vehicle Enveff Scale", "This works on certain vehicles only, like the besra for example. It 'fades' certain paint layers.", 0, 20, 10, true);
 
-            MenuItem chrome = new MenuItem("Chrome");
-            VehicleColorsMenu.AddMenuItem(chrome);
-            VehicleColorsMenu.AddMenuItem(vehicleEnveffScale);
+            //MenuItem chrome = new MenuItem("Chrome");
+            //VehicleColorsMenu.AddMenuItem(chrome);
+            //VehicleColorsMenu.AddMenuItem(vehicleEnveffScale);
 
             VehicleColorsMenu.OnItemSelect += (sender, item, index) =>
             {
@@ -1023,10 +1036,10 @@ namespace vMenuClient
                 Vehicle veh = GetVehicle();
                 if (veh != null && veh.Driver == Game.PlayerPed && !veh.IsDead)
                 {
-                    if (sliderItem == vehicleEnveffScale)
-                    {
-                        SetVehicleEnveffScale(veh.Handle, newPosition / 20f);
-                    }
+                    //if (sliderItem == vehicleEnveffScale)
+                    //{
+                    //    SetVehicleEnveffScale(veh.Handle, newPosition / 20f);
+                    //}
                 }
                 else
                 {
@@ -1034,9 +1047,9 @@ namespace vMenuClient
                 }
             };
 
-            VehicleColorsMenu.AddMenuItem(dashColorList);
-            VehicleColorsMenu.AddMenuItem(intColorList);
-            VehicleColorsMenu.AddMenuItem(wheelColorsList);
+            //VehicleColorsMenu.AddMenuItem(dashColorList);
+            //VehicleColorsMenu.AddMenuItem(intColorList);
+            //VehicleColorsMenu.AddMenuItem(wheelColorsList);
 
             VehicleColorsMenu.OnListIndexChange += HandleListIndexChanges;
 
@@ -1085,59 +1098,59 @@ namespace vMenuClient
                         }
                         SetVehicleColours(veh.Handle, primaryColor, secondaryColor);
                     }
-                    else if (sender == secondaryColorsMenu)
-                    {
-                        switch (itemIndex)
-                        {
-                            case 0:
-                                pearlColor = VehicleData.ClassicColors[newIndex].id;
-                                break;
-                            case 1:
-                            case 2:
-                                secondaryColor = VehicleData.ClassicColors[newIndex].id;
-                                break;
-                            case 3:
-                                secondaryColor = VehicleData.MatteColors[newIndex].id;
-                                break;
-                            case 4:
-                                secondaryColor = VehicleData.MetalColors[newIndex].id;
-                                break;
-                            case 5:
-                                secondaryColor = VehicleData.UtilColors[newIndex].id;
-                                break;
-                            case 6:
-                                secondaryColor = VehicleData.WornColors[newIndex].id;
-                                break;
-                        }
-                        SetVehicleColours(veh.Handle, primaryColor, secondaryColor);
-                    }
+                    //else if (sender == secondaryColorsMenu)
+                    //{
+                    //    switch (itemIndex)
+                    //    {
+                    //        case 0:
+                    //            pearlColor = VehicleData.ClassicColors[newIndex].id;
+                    //            break;
+                    //        case 1:
+                    //        case 2:
+                    //            secondaryColor = VehicleData.ClassicColors[newIndex].id;
+                    //            break;
+                    //        case 3:
+                    //            secondaryColor = VehicleData.MatteColors[newIndex].id;
+                    //            break;
+                    //        case 4:
+                    //            secondaryColor = VehicleData.MetalColors[newIndex].id;
+                    //            break;
+                    //        case 5:
+                    //            secondaryColor = VehicleData.UtilColors[newIndex].id;
+                    //            break;
+                    //        case 6:
+                    //            secondaryColor = VehicleData.WornColors[newIndex].id;
+                    //            break;
+                    //    }
+                    //    SetVehicleColours(veh.Handle, primaryColor, secondaryColor);
+                    //}
                     else if (sender == VehicleColorsMenu)
                     {
-                        if (listItem == wheelColorsList)
-                        {
-                            if (newIndex == 0)
-                            {
-                                wheelColor = 156; // default alloy color.
-                            }
-                            else
-                            {
-                                wheelColor = VehicleData.ClassicColors[newIndex - 1].id;
-                            }
-                        }
-                        else if (listItem == dashColorList)
-                        {
-                            dashColor = VehicleData.ClassicColors[newIndex].id;
-                            // sadly these native names are mixed up :/ but ofc it's impossible to fix due to backwards compatibility.
-                            // this should actually be called SetVehicleDashboardColour
-                            SetVehicleInteriorColour(veh.Handle, dashColor);
-                        }
-                        else if (listItem == intColorList)
-                        {
-                            intColor = VehicleData.ClassicColors[newIndex].id;
-                            // sadly these native names are mixed up :/ but ofc it's impossible to fix due to backwards compatibility.
-                            // this should actually be called SetVehicleInteriorColour
-                            SetVehicleDashboardColour(veh.Handle, intColor);
-                        }
+                        //if (listItem == wheelColorsList)
+                        //{
+                        //    if (newIndex == 0)
+                        //    {
+                        //        wheelColor = 156; // default alloy color.
+                        //    }
+                        //    else
+                        //    {
+                        //        wheelColor = VehicleData.ClassicColors[newIndex - 1].id;
+                        //    }
+                        //}
+                        //else if (listItem == dashColorList)
+                        //{
+                        //    dashColor = VehicleData.ClassicColors[newIndex].id;
+                        //    // sadly these native names are mixed up :/ but ofc it's impossible to fix due to backwards compatibility.
+                        //    // this should actually be called SetVehicleDashboardColour
+                        //    SetVehicleInteriorColour(veh.Handle, dashColor);
+                        //}
+                        //else if (listItem == intColorList)
+                        //{
+                        //    intColor = VehicleData.ClassicColors[newIndex].id;
+                        //    // sadly these native names are mixed up :/ but ofc it's impossible to fix due to backwards compatibility.
+                        //    // this should actually be called SetVehicleInteriorColour
+                        //    SetVehicleDashboardColour(veh.Handle, intColor);
+                        //}
                     }
 
                     SetVehicleExtraColours(veh.Handle, pearlColor, wheelColor);
@@ -1148,40 +1161,40 @@ namespace vMenuClient
                 }
             }
 
-            for (int i = 0; i < 2; i++)
-            {
-                var pearlescentList = new MenuListItem("Pearlescent", classic, 0);
-                var classicList = new MenuListItem("Classic", classic, 0);
-                var metallicList = new MenuListItem("Metallic", classic, 0);
-                var matteList = new MenuListItem("Matte", matte, 0);
-                var metalList = new MenuListItem("Metals", metals, 0);
-                var utilList = new MenuListItem("Util", util, 0);
-                var wornList = new MenuListItem("Worn", worn, 0);
+            //for (int i = 0; i < 2; i++)
+            //{
+            //    var pearlescentList = new MenuListItem("Pearlescent", classic, 0);
+            //    var classicList = new MenuListItem("Classic", classic, 0);
+            //    var metallicList = new MenuListItem("Metallic", classic, 0);
+            //    var matteList = new MenuListItem("Matte", matte, 0);
+            //    var metalList = new MenuListItem("Metals", metals, 0);
+            //    var utilList = new MenuListItem("Util", util, 0);
+            //    var wornList = new MenuListItem("Worn", worn, 0);
 
-                if (i == 0)
-                {
-                    primaryColorsMenu.AddMenuItem(classicList);
-                    primaryColorsMenu.AddMenuItem(metallicList);
-                    primaryColorsMenu.AddMenuItem(matteList);
-                    primaryColorsMenu.AddMenuItem(metalList);
-                    primaryColorsMenu.AddMenuItem(utilList);
-                    primaryColorsMenu.AddMenuItem(wornList);
+            //    if (i == 0)
+            //    {
+            //        primaryColorsMenu.AddMenuItem(classicList);
+            //        primaryColorsMenu.AddMenuItem(metallicList);
+            //        primaryColorsMenu.AddMenuItem(matteList);
+            //        primaryColorsMenu.AddMenuItem(metalList);
+            //        primaryColorsMenu.AddMenuItem(utilList);
+            //        primaryColorsMenu.AddMenuItem(wornList);
 
-                    primaryColorsMenu.OnListIndexChange += HandleListIndexChanges;
-                }
-                else
-                {
-                    secondaryColorsMenu.AddMenuItem(pearlescentList);
-                    secondaryColorsMenu.AddMenuItem(classicList);
-                    secondaryColorsMenu.AddMenuItem(metallicList);
-                    secondaryColorsMenu.AddMenuItem(matteList);
-                    secondaryColorsMenu.AddMenuItem(metalList);
-                    secondaryColorsMenu.AddMenuItem(utilList);
-                    secondaryColorsMenu.AddMenuItem(wornList);
+            //        primaryColorsMenu.OnListIndexChange += HandleListIndexChanges;
+            //    }
+            //    else
+            //    {
+            //        secondaryColorsMenu.AddMenuItem(pearlescentList);
+            //        secondaryColorsMenu.AddMenuItem(classicList);
+            //        secondaryColorsMenu.AddMenuItem(metallicList);
+            //        secondaryColorsMenu.AddMenuItem(matteList);
+            //        secondaryColorsMenu.AddMenuItem(metalList);
+            //        secondaryColorsMenu.AddMenuItem(utilList);
+            //        secondaryColorsMenu.AddMenuItem(wornList);
 
-                    secondaryColorsMenu.OnListIndexChange += HandleListIndexChanges;
-                }
-            }
+            //        secondaryColorsMenu.OnListIndexChange += HandleListIndexChanges;
+            //    }
+            //}
             #endregion
 
             #region Vehicle Doors Submenu Stuff

@@ -1298,8 +1298,35 @@ namespace vMenuClient
 
             // Discard the model.
             SetModelAsNoLongerNeeded(vehicleHash);
+
+            SetVehicleNumberPlateText(vehicle.Handle, $"{MakeRandomPlateAlpha()} {MakeRandomPlateNum()}");
         }
 
+        private static string MakeRandomPlateAlpha()
+        {
+            string characters = "ABCDEFGHIJKLMNPQRSTUVWXYZ";
+            StringBuilder result = new StringBuilder();
+            Random rnd = new Random();
+            for (int i = 0; i < 3; i++)
+            {                
+                result.Append(characters.ToCharArray()[rnd.Next(characters.Length)]);
+            }
+            return result.ToString();
+        }
+
+
+        private static string MakeRandomPlateNum()
+        {
+            
+            StringBuilder result = new StringBuilder();
+            Random rnd = new Random();
+            for (int i = 0; i < 4; i++)
+            {
+                
+                result.Append(rnd.Next(10));
+            }
+            return result.ToString();
+        }
         /// <summary>
         /// Waits for the given delay before applying the vehicle mods
         /// </summary>
