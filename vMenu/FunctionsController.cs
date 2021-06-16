@@ -236,6 +236,12 @@ namespace vMenuClient
                 }
             }
 
+            // Manage PlayerInvisible
+            if (GetSettingsBool(Setting.vmenu_handle_invisibility) && MainMenu.PlayerOptionsMenu.PlayerInvisible && IsAllowed(Permission.POInvisible))
+            {
+                SetEntityVisible(Game.PlayerPed.Handle, false, false);
+            }
+
             // Manage Super jump.
             if (MainMenu.PlayerOptionsMenu.PlayerSuperJump && IsAllowed(Permission.POSuperjump))
             {
